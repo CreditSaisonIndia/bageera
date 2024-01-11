@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS using Fargate'
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: 'ECS Parameters'
+        Parameters:
+          - TaskName
+          - CpuSize
+          - MemorySize
+          - isScheduled
+
+    ParameterLabels:
+      TaskName:
+        default: Name of the Container
+      CpuSize:
+        default: Size of the CPU
+      MemorySize:
+        default: Size of the Memory
+      isScheduled:
+        default: Task Scheduler is enable/disable
+
+Parameters:
+  TaskName:
+    Description: Name of the container
+    Type: String
+  CpuSize:
+    Description: Size of the CPU
+    Type: String
+    Default: "1048"
+  MemorySize:
+    Description: Size of the Memory
+    Type: String
+    Default: "2048"
+  OrganizedBucket:
+    Type: String
+    Description: Organized Bucket name
+  UnorganizedBucket:
+    Type: String
+    Description: Unorganized Bucket name
+  isScheduled:
+    Description: Task Scheduler is enable/disable
+    Type: String
+    Default: DISABLED
+  EcsTaskRoleArn:
+    Description: EcsTaskRole
+    Type: String
+  EcsExecutionRoleArn:
+    Description: EcsExecutionRole
+    Type: String
+  sg:
+    Description: security group
+    Type: String
+
+Resources:
+
+  ContainerLogGroup:
+    Type: AWS::Logs::LogGroup
+
+  JobDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${TaskName}-definition
+      Cpu: !Ref CpuSize
+      Memory: !Ref MemorySize
+      NetworkMode: awsvpc
+      TaskRoleArn: !Ref EcsTaskRoleArn
+      ExecutionRoleArn: !Ref EcsExecutionRoleArn
+      Volumes:
+        - Name: "pq-job-metadata"
+          EfsVolumeConfiguration:
+            FileSystemId: !ImportValue bageeraPqJobMetadataFileSystemId
+            RootDirectory: "/"
+      RequiresCompatibilities:
+        - "FARGATE"
+      ContainerDefinitions:
+        - Image: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${TaskName}-repo:latest'
+          Name:  !Sub '${TaskName}-container'
+          Cpu: !Ref CpuSize
+          Memory: !Ref MemorySize
+          Essential: true
+          StartTimeout: 120
+          StopTimeout: 120
+          WorkingDirectory: "/app/bageera"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref ContainerLogGroup
+              awslogs-stream-prefix: !Ref AWS::StackName
+          MountPoints:
+            - SourceVolume: "pq-job-metadata"
+              ContainerPath: "/app/bageera/temp/data"
+              ReadOnly: false
+      Tags:
+        - Key: Service
+          Value: bageera
+        - Key: Owner
+          Value: Proton
+        - Key: Department
+          Value: Tech
+        - Key: Stage
+          Value: LOS
+
+  Service:
+    DependsOn: JobDefinition
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub "ecs-${TaskName}-service"
+      Cluster: !ImportValue bageeraEcsCluster-Arn
+      LaunchType: FARGATE
+      DesiredCount: 0
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !Ref sg
+          Subnets: !Split [',',!ImportValue ServiceSubnet]
+      TaskDefinition: !Ref JobDefinition
+
+
+Outputs:
+  JobDefinitionArn:
+    Value: !GetAtt JobDefinition.Arn
+    Description: ARN of the ECS Task Definition
+    Export:
+      Name: !Sub ${TaskName}-definition-Arn

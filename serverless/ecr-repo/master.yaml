@@ -1,0 +1,39 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Environment Type
+        Parameters:
+          - EnvironmentType
+
+    ParameterLabels:
+      EnvironmentType:
+        default: Environment Type
+
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Description: Environment of Deployment
+    AllowedValues: [ "dev", "qa", "qa2", "uat", "int", "production" ]
+    Default: "dev"
+
+
+Resources:
+  jobRepo:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EnvironmentType: !Ref EnvironmentType
+        RepositoryName: "bageera-job-repo"
+      TemplateURL: ./ecr/ecr.yaml
+  pursuerRepo:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EnvironmentType: !Ref EnvironmentType
+        RepositoryName: "bageera-pursuer-repo"
+      TemplateURL: ./ecr/ecr.yaml

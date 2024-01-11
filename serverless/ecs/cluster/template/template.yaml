@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Default Cluster for All Argos Fargate Instances'
+
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: 'AWS params'
+        Parameters:
+          - EnvironmentType
+
+    ParameterLabels:
+      EnvironmentType:
+        default: Environment Type
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Description: 'Environment of Deployment'
+
+Resources:
+  bageeraEcsCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: "bageeraEcsCluster"
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: environment
+          Value: !Ref EnvironmentType
+        - Key: Service
+          Value: Argos
+        - Key: Owner
+          Value: Proton
+        - Key: Department
+          Value: Tech
+        - Key: Stage
+          Value: LOS
+
+Outputs:
+  bageeraEcsClusterArn:
+    Description: bageera cluster
+    Value: !GetAtt bageeraEcsCluster.Arn
+    Export:
+      Name: 'bageeraEcsCluster-Arn'

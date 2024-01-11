@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'S3 bucket'
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+    - Label:
+        default: 'S3 Parameters'
+      Parameters:
+      - BucketName
+      - EnvironmentType
+      - ServiceTags
+    ParameterLabels:
+      BucketName:
+        default: Name of the Bucket
+      EnvironmentType:
+        default: Environment Type  
+      ServiceTags:
+        default: List of service tags Service, Owner, Department, Stage
+Parameters:
+  BucketName:
+    Description: 'Optional name of the bucket.'
+    Type: String
+    Default: ''
+  EnvironmentType:
+    Type: String
+    Description: Environment of Deployment
+    AllowedValues: [ 'dev', 'qa', 'qa2', 'uat', 'int', 'production' ]
+    Default: 'dev'
+  ServiceTags:
+    Description: List of service tags Service, Owner, Department, Stage
+    Type: CommaDelimitedList
+
+
+
+Resources:
+  Bucket: # cannot be deleted with data
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub '${BucketName}-${EnvironmentType}-${AWS::AccountId}-${AWS::Region}'
+      AccessControl: Private
+      # VersioningConfiguration:
+      #   Status: 'Enabled'
+      # BucketEncryption:
+      #   ServerSideEncryptionConfiguration:
+      #   - ServerSideEncryptionByDefault:
+      #       SSEAlgorithm: AES256
+      Tags:
+        - Key: Service
+          Value: !Select [ 0, !Ref ServiceTags ]
+        - Key: Owner
+          Value: !Select [ 1, !Ref ServiceTags ]
+        - Key: Department
+          Value: !Select [ 2, !Ref ServiceTags ]
+        - Key: Stage
+          Value: !Select [ 3, !Ref ServiceTags ]
+
+
+Outputs:
+  BucketName:
+    Description: 'Name of the bucket'
+    Value: !Ref Bucket
+    Export:
+      Name: !Ref BucketName
+  BucketArn:
+    Description: ARN of newly created S3 bucket
+    Value: !GetAtt Bucket.Arn
+    Export:
+      Name: !Sub ${BucketName}-Arn

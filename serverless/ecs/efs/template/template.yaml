@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS using Fargate'
+
+
+Resources:
+
+  pqJobMetadataFileSystem:
+      Type: AWS::EFS::FileSystem
+      Properties:
+        FileSystemTags:
+            - Key: Name
+              Value: "pq-job-metadata"
+        PerformanceMode: generalPurpose
+        Encrypted: true
+        LifecyclePolicies:
+          - TransitionToIA: AFTER_7_DAYS
+
+
+Outputs:
+  PQJobMetadataFileSystemId:
+    Value: !Ref pqJobMetadataFileSystem
+    Export:
+      Name: !Sub "bageeraPqJobMetadataFileSystemId"
