@@ -53,6 +53,10 @@ Parameters:
   sg:
     Description: security group
     Type: String
+  EnvironmentType:
+    Description: Environment Type
+    Type: String
+
 
 Resources:
 
@@ -94,6 +98,23 @@ Resources:
             - SourceVolume: "pq-job-metadata"
               ContainerPath: "/app/bageera/temp/data"
               ReadOnly: false
+          Environment:
+            - Name: region
+              Value: !Ref AWS::Region
+            - Name: dbUsername
+              Value: '{{resolve:secretsmanager:scarlet-db-creds:SecretString:username}}'
+            - Name: dbPassword
+              Value: '{{resolve:secretsmanager:scarlet-db-creds:SecretString:password}}'
+            - Name: dbPassword
+              Value: '{{resolve:secretsmanager:scarlet-db-creds:SecretString:password}}'
+            - Name: environment
+              Value: !Ref EnvironmentType
+            - Name: dbHost
+              Value: '{{resolve:ssm:MASTER_DB_HOST}}'
+            - Name: efsBasePath
+              Value: "/app/bageera/temp/data"
+            
+
       Tags:
         - Key: Service
           Value: bageera
@@ -123,7 +144,7 @@ Resources:
 
 Outputs:
   JobDefinitionArn:
-    Value: !GetAtt JobDefinition.Arn
+    Value: !Ref JobDefinition
     Description: ARN of the ECS Task Definition
     Export:
       Name: !Sub ${TaskName}-definition-Arn

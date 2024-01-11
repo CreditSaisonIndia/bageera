@@ -31,6 +31,10 @@ Resources:
         QueueName: 'pq-job-queue'
         ServiceTags: !Join [ ',', [ bageera, Proton, Tech, LOS ] ]
         EnvironmentType: !Ref EnvironmentType
+        BageeraClusterArn: !ImportValue bageeraEcsCluster-Arn
+        BageeraJobDefinitionArn: !ImportValue bageera-job-definition-Arn
+        BageeraJobEcsSecurityGroupId: !ImportValue bageeraJobEcsSecurityGroupId
+        ServiceSubnets: !Join [',', !Split [',', !ImportValue ServiceSubnet]]
       TemplateURL: ./sns-sqs-lambda.yaml
 
 

@@ -27,10 +27,22 @@ Parameters:
       - 'qa'
       - 'dev'
     Default: 'qa2'
-    
+  BageeraClusterArn:
+    Description: BageerClusterArn
+    Type: String
+  BageeraJobDefinitionArn:
+    Description: BageerClusterArn
+    Type: String
+  BageeraJobEcsSecurityGroupId:
+    Description: Bageera Job Ecs Security Group Id
+    Type: String
+  ServiceSubnets:
+    Description: Service Subnets
+    Type: String
 
 
     
+
 Resources:
 
 
@@ -75,6 +87,11 @@ Resources:
       Environment:
         Variables:
           PQ_JOB_QUEUE_URL: !Ref pqJobQueue
+          BAGEERA_CLUSTER_ARN: !Ref BageeraClusterArn
+          BAGEERA_JOB_DEFINITION_ARN: !Ref BageeraJobDefinitionArn
+          ENV: !Ref EnvironmentType
+          BAGEERA_ECS_JOB_SG_ID: !Ref BageeraJobEcsSecurityGroupId
+          SERVICE_SUBNETS: !Ref ServiceSubnets
 
   Topic:
     DependsOn: pqJobQueue

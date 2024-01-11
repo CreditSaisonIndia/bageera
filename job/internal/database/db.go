@@ -95,10 +95,10 @@ func InitGormPool() {
 		}))
 
 	} else {
-		LOGGER.Info("Using RDS Database Connection [READER_NODE].")
+		LOGGER.Info("Using RDS Database Connection")
 		readerIamAuth := &IAMAuth{
 			DatabaseUser:   serviceConfig.DatabaseSetting.User,
-			DatabaseHost:   serviceConfig.DatabaseSetting.ReaderDbHost,
+			DatabaseHost:   serviceConfig.DatabaseSetting.MasterDbHost,
 			DatabasePort:   serviceConfig.DatabaseSetting.Port,
 			DatabaseName:   serviceConfig.DatabaseSetting.Name,
 			DatabaseSchema: serviceConfig.DatabaseSetting.TablePrefix,

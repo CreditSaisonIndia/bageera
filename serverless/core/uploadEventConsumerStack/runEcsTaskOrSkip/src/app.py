@@ -17,85 +17,44 @@ def lambda_handler(event, context):
 
     # Extract bucket and object key
     message = json.loads(event["Records"][0]["Sns"]["Message"])
-    bucket = message["bucket"]
-    object_key = message["object_key"]
+    bucket = message["bucketName"]
+    object_key = str(message["objectKey"])
 
     logging.info("Bucket in SNS message : %s", bucket)
-    logging.info("Object Key in SNS Message: %s", str(object_key))
+    logging.info("Object Key in SNS Message: %s", object_key)
+    
+    file_name = os.path.basename(object_key)
     
     # Values to pass to the ECS task
-    task_definition = 'test-pq-task-definition'
-    cluster = 'test-pq-cluster'
+    task_definition = 'bageera-job-definition'
+    cluster = 'bageeraEcsCluster'
     launch_type = 'FARGATE'  # or EC2 depending on your setup
     subnet = 'subnet-02bf49ba39bfed0a2'
-    security_group = 'sg-0fb23160c3fb41a70'
+    security_group = 'sg-0c4dbe2de90e1a522'
 
     # Additional parameters for your task
     container_overrides = [
         {
             
-            'name': 'test-pq-container',
+            'name': 'bageera-job-container',
             'environment': [
                 {
                     'name': 'fileName',
-                    'value': "file_PSB_10000000_4.csv",
-                },
-                {
-                    'name': 'chunkSize',
-                    'value': "20000",
+                    'value': file_name,
                 },
                 {
                     'name': 'bucketName',
-                    'value': "glue-inital-offer-bucket",
+                    'value': bucket,
                 },
                 {
                     'name': 'objectKey',
-                    'value': "lpc/PSB/f7bc025b-b6cc-4a15-b3ab-28367bcfd26f/file_PSB_10000000_4.csv",
-                },
-                {
-                    'name': 'lpc',
-                    'value': "PSB",
-                },
-                {
-                    'name': 'execution',
-                    'value': "auto",
-                },
-                {
-                    'name': 'region',
-                    'value': "us-east-1",
+                    'value': object_key,
                 },
                 {
                     'name': 'requestQueueUrl',
                     'value': PQ_JOB_QUEUE_URL,
                 },
-                {
-                    'name': 'dbUsername',
-                    'value': "masteruser",
-                },
-                {
-                    'name': 'dbPassword',
-                    'value': "szkeUq2DbgHAUnW",
-                },
-                {
-                    'name': 'dbHost',
-                    'value': "ksf-cluster-v2-us-east-1.cluster-cpktqakm2slz.us-east-1.rds.amazonaws.com",
-                },
-                {
-                    'name': 'dbPort',
-                    'value': "5432",
-                },
-                {
-                    'name': 'dbName',
-                    'value': "proddb",
-                },
-                {
-                    'name': 'schema',
-                    'value': "scarlet",
-                },
-                {
-                    'name': 'efsBasePath',
-                    'value': "/temp/data",
-                },
+
                 {
                     'name': 'environment',
                     'value': "dev",
@@ -113,7 +72,7 @@ def lambda_handler(event, context):
         cluster=cluster,
         desiredStatus='RUNNING'  # You can adjust the status based on your requirements
     )
-    task_definition_arn="arn:aws:ecs:us-east-1:971709774307:task-definition/test-pq-task-definition:4"
+    task_definition_arn="arn:aws:ecs:us-east-1:971709774307:task-definition/bageera-job-definition:3"
 
     # Check if any tasks match the specified task definition ARN
     matching_tasks = [task for task in tasks.get('taskArns', []) if ecs.describe_tasks(cluster=cluster, tasks=[task])['tasks'][0]['taskDefinitionArn'] == task_definition_arn]

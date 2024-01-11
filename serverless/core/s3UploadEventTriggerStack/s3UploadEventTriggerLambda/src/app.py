@@ -19,6 +19,8 @@ def lambda_handler(event, context):
     
     logger.info("BUCKET NAME : %s", bucket_name)
     logger.info("OBJECT KEY : %s", object_key)
+    file_name = os.path.basename(object_key)
+    path_elements = object_key.split("/")
 
     # Create an SNS client
     sns_client = boto3.client('sns')
@@ -26,8 +28,20 @@ def lambda_handler(event, context):
     # Create a message to publish to the SNS topic
     message = {
         'event': 'S3_UPLOAD',
-        'bucket': bucket_name,
-        'object_key': object_key
+        'bucketName': bucket_name,
+        'objectKey': object_key,
+        'lpc':path_elements[2],
+        'fileName':file_name,
+        'environment':"dev",
+        'requestQueueUrl':"https://sqs.us-east-1.amazonaws.com/971709774307/pq-job-queue-us-east-1"
+        # 'dbUserName':"masteruser",
+        # 'dbPassword':"szkeUq2DbgHAUnW",
+        # 'dbHost':"ksf-cluster-v2-us-east-1.cluster-cpktqakm2slz.us-east-1.rds.amazonaws.com",
+        # 'dbPort':"5432",
+        # 'dbName':"proddb",
+        # 'schema':"scarlet",
+        # 'efsBasePath':"/app/bageera/temp/data",
+        # 'environment':"dev"
     }
 
     # Publish the message to the SNS topic

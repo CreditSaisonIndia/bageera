@@ -37,6 +37,7 @@ Resources:
         EcsTaskRoleArn: !ImportValue bageera-job-EcsTaskRoleArn
         EcsExecutionRoleArn: !ImportValue bageera-job-EcsExecutionRoleArn
         sg: !ImportValue bageeraJobEcsSecurityGroupId
+        EnvironmentType: !Ref EnvironmentType
       TemplateURL: ./template/template.yaml
 
   pursuer:
@@ -52,4 +53,5 @@ Resources:
         EcsTaskRoleArn: !ImportValue bageera-pursuer-EcsTaskRoleArn
         EcsExecutionRoleArn: !ImportValue bageera-pursuer-EcsExecutionRoleArn
         sg: !ImportValue bageeraPursuerEcsSecurityGroupId
+        EnvironmentType: !Ref EnvironmentType
       TemplateURL: ./template/template.yaml

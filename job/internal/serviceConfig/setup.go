@@ -2,10 +2,11 @@ package serviceConfig
 
 import (
 	"fmt"
-	"gopkg.in/ini.v1"
 	"log"
 	"os"
 	"path/filepath"
+
+	"gopkg.in/ini.v1"
 )
 
 type Application struct {
@@ -62,38 +63,38 @@ func SetUp(env string) {
 	fmt.Println("Current working directory:", exePath)
 
 	switch env {
-	case "dev":
-		path = basePath + "/dev.ini"
-		break
-	case "prod":
-		path = basePath + "/prod.ini"
-		break
-	case "uat":
-		path = basePath + "/uat.ini"
-		break
-	case "int":
-		path = basePath + "/int.ini"
-		break
-	case "qa2":
-		path = basePath + "/qa2.ini"
-		break
 	case "local":
 		path = basePath + "/local.ini"
+
+		cfg, err = ini.Load(path)
+
+		if err != nil {
+			log.Fatalf("setting.Setup, fail to parse %s': %v", path, err)
+		}
+
+		mapTo("application", ApplicationSetting)
+		mapTo("server", ServerSetting)
+		mapTo("database", DatabaseSetting)
 		break
 	// Add cases for other days as needed
 	default:
-		path = basePath + "/local.ini"
+
+		ApplicationSetting.EfsBasePath = os.Getenv("efsBathPath")
+		ApplicationSetting.Region = os.Getenv("region")
+		ApplicationSetting.PqJobQueueUrl = os.Getenv("requestQueueUrl")
+		ApplicationSetting.RunType = os.Getenv("environment")
+
+		DatabaseSetting.MasterDbHost = os.Getenv("dbHost")
+
+		DatabaseSetting.Name = "proddb"
+		DatabaseSetting.Password = os.Getenv("dbPassword")
+		DatabaseSetting.Port = "5432"
+		DatabaseSetting.TablePrefix = "scarlet"
+		DatabaseSetting.User = os.Getenv("dbUsername")
+		DatabaseSetting.Type = "postgres"
+
 	}
 
-	cfg, err = ini.Load(path)
-
-	if err != nil {
-		log.Fatalf("setting.Setup, fail to parse %s': %v", path, err)
-	}
-
-	mapTo("application", ApplicationSetting)
-	mapTo("server", ServerSetting)
-	mapTo("database", DatabaseSetting)
 }
 
 func mapTo(section string, v interface{}) {
