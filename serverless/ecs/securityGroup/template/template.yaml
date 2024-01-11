@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS security groups'
+
+
+Resources:
+
+  jobEcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'bageera-job-security-group'
+      VpcId:
+        Fn::ImportValue: Vpc
+      Tags:
+        - Key: Service
+          Value: Bageera
+        - Key: Owner
+          Value: Proton
+        - Key: Department
+          Value: Tech
+        - Key: Stage
+          Value: LOS
+  
+  pursuerEcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: 'bageera-pursuer-security-group'
+      VpcId:
+        Fn::ImportValue: Vpc
+      Tags:
+        - Key: Service
+          Value: Bageera
+        - Key: Owner
+          Value: Proton
+        - Key: Department
+          Value: Tech
+        - Key: Stage
+          Value: LOS
+
+  pqJobMetadataFileSystemSecurityGroup:
+      DependsOn: 
+        - jobEcsSecurityGroup
+        - pursuerEcsSecurityGroup
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: !Join
+                            - ''
+                            - - !ImportValue bageeraPqJobMetadataFileSystemId
+                              - "-security-group"
+        VpcId:
+          Fn::ImportValue: Vpc
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 2049
+            ToPort: 2049
+            SourceSecurityGroupId: !Ref jobEcsSecurityGroup
+          - IpProtocol: tcp
+            FromPort: 2049
+            ToPort: 2049
+            SourceSecurityGroupId: !Ref pursuerEcsSecurityGroup
+
+  
+
+  pqJobMetadataMountTargetA:
+    DependsOn: pqJobMetadataFileSystemSecurityGroup
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !ImportValue bageeraPqJobMetadataFileSystemId
+      SubnetId: !Select [0, !Split [',', !ImportValue ServiceSubnet]]
+      SecurityGroups: 
+        - !Ref pqJobMetadataFileSystemSecurityGroup
+
+  pqJobMetadataMountTargetB:
+    DependsOn: pqJobMetadataFileSystemSecurityGroup
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !ImportValue bageeraPqJobMetadataFileSystemId
+      SubnetId: !Select [1, !Split [',', !ImportValue ServiceSubnet]]
+      SecurityGroups: 
+        - !Ref pqJobMetadataFileSystemSecurityGroup
+
+  pqJobMetadataMountTargetC:
+    DependsOn: pqJobMetadataFileSystemSecurityGroup
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !ImportValue bageeraPqJobMetadataFileSystemId
+      SubnetId: !Select [2, !Split [',', !ImportValue ServiceSubnet]]
+      SecurityGroups: 
+        - !Ref pqJobMetadataFileSystemSecurityGroup
+
+
+Outputs:
+  JobEcsSecurityGroupId:
+    Value: !GetAtt jobEcsSecurityGroup.GroupId
+    Export:
+      Name: !Sub "bageeraJobEcsSecurityGroupId"
+  pursuerEcsSecurityGroupId:
+    Value: !GetAtt pursuerEcsSecurityGroup.GroupId
+    Export:
+      Name: !Sub "bageeraPursuerEcsSecurityGroupId"

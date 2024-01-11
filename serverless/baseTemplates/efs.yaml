@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EFS '
+
+Parameters:
+  Name:
+    Description: Name of EFS 
+    Type: String
+
+
+Resources:
+  pqJobMetadataFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      FileSystemTags:
+          - Key: Name
+            Value: !Ref Name
+      PerformanceMode: generalPurpose
+      Encrypted: true
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_7_DAYS
+
+Outputs:
+  pqJobMetadataFileSystemId:
+    Description: "EFS File System ID"
+    Value: !Ref pqJobMetadataFileSystem
+    Export:
+      Name: pqJobMetadataFileSystem

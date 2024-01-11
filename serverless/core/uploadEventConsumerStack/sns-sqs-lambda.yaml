@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: 2010-09-09
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'AWS CloudFormation Sample Template SNS-> SQS  SNS-> lambda'
+
+Parameters:
+  DisplayName:
+    Description: Display name for the topic
+    Type: String
+  TopicName:
+    Description: Name of the topic
+    Type: String
+  QueueName:
+    Description: Name of the topic
+    Type: String
+  ServiceTags:
+    Description: List of service tags Service, Owner, Department, Stage
+    Type: CommaDelimitedList
+  EnvironmentType:
+    Description: EnvironmentType
+    Type: String
+    AllowedValues:
+      - 'production'
+      - 'uat'
+      - 'int'
+      - 'qa2'
+      - 'qa'
+      - 'dev'
+    Default: 'qa2'
+    
+
+
+    
+Resources:
+
+
+  pqJobQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      SqsManagedSseEnabled: true
+      VisibilityTimeout: 30
+      QueueName: !Join [ '', [ !Ref QueueName, '-' , !Ref 'AWS::Region' ] ]
+      # RedrivePolicy:
+      #   Fn::If:
+      #     - CreateDeadLetterQueue
+      #     - deadLetterTargetArn:
+      #         Fn::GetAtt:
+      #           - MyDeadLetterQueue
+      #           - Arn
+      #       maxReceiveCount: 5
+      #     - Ref: AWS::NoValue
+      Tags:
+        - Key: Service
+          Value: !Select [ 0, !Ref ServiceTags ]
+        - Key: Owner
+          Value: !Select [ 1, !Ref ServiceTags ]
+        - Key: Department
+          Value: !Select [ 2, !Ref ServiceTags ]
+        - Key: Stage
+          Value: !Select [ 3, !Ref ServiceTags ]
+
+  RunEcsTaskOrSkipFunction:
+    DependsOn: pqJobQueue
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: ./runEcsTaskOrSkip/src
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 120
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonSSMFullAccess
+        - AmazonSNSFullAccess
+        - AmazonECS_FullAccess
+      Environment:
+        Variables:
+          PQ_JOB_QUEUE_URL: !Ref pqJobQueue
+
+  Topic:
+    DependsOn: pqJobQueue
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Ref DisplayName
+      TopicName: !Ref TopicName
+      Tags:
+        - Key: Service
+          Value: !Select [ 0, !Ref ServiceTags ]
+        - Key: Owner
+          Value: !Select [ 1, !Ref ServiceTags ]
+        - Key: Department
+          Value: !Select [ 2, !Ref ServiceTags ]
+        - Key: Stage
+          Value: !Select [ 3, !Ref ServiceTags ]
+
+  
+
+
+  QueueSubscription:
+    DependsOn: 
+      - pqJobQueue
+      - SqsSnsQueuePolicy
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref Topic
+      Endpoint: !GetAtt pqJobQueue.Arn
+
+  LambdaSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref Topic
+      Endpoint: !GetAtt RunEcsTaskOrSkipFunction.Arn
+
+  LambdaFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt RunEcsTaskOrSkipFunction.Arn
+      Principal: sns.amazonaws.com
+
+  SqsSnsQueuePolicy:
+    DependsOn: 
+      - pqJobQueue
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: 
+        - !Ref pqJobQueue
+      PolicyDocument:
+        Id: SnsSqsSubscriptionPolicy
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - "SQS:SendMessage"
+            Effect: "Allow"
+            Principal: "*"
+            Resource: !GetAtt pqJobQueue.Arn
+
+
+Outputs:
+  SnsArn:
+    Description: Arn of the sns topic
+    Value: !Ref Topic
+    Export:
+      Name: !Sub ${DisplayName}-Arn
+  QueueURL:
+    Description: URL of newly created SQS Queue
+    Value:
+      Ref: pqJobQueue
+    Export:
+      Name: !Sub ${QueueName}-Url
+  # DeadLetterQueueURL:
+  #   Condition: CreateDeadLetterQueue
+  #   Description: URL of the dead letter queue
+  #   Value:
+  #     Ref: MyDeadLetterQueue
+  #   Export:
+  #     Name: !Sub ${QueueName}-DLQ-Url
+  QueueArn:
+    Description: ARN of newly created SQS Queue
+    Value: !GetAtt pqJobQueue.Arn
+    Export:
+      Name: !Sub ${QueueName}-Arn
+
+  RunEcsTaskOrSkipFunction:
+    Description: "RunEcsTaskOrSkipFunction Lambda Function ARN"
+    Value: !GetAtt RunEcsTaskOrSkipFunction.Arn
+    Export:
+      Name: bageeraRunEcsTaskOrSkip

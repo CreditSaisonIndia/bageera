@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'AWS CloudFormation Sample Template SNS'
+
+Parameters:
+  DisplayName:
+    Description: Display name for the topic
+    Type: String
+  TopicName:
+    Description: Name of the topic
+    Type: String
+  ServiceTags:
+    Description: List of service tags Service, Owner, Department, Stage
+    Type: CommaDelimitedList
+  EnvironmentType:
+    Description: EnvironmentType
+    Type: String
+    AllowedValues:
+      - 'production'
+      - 'uat'
+      - 'int'
+      - 'qa2'
+      - 'qa'
+      - 'dev'
+    Default: 'qa2'
+
+
+    
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Ref DisplayName
+      TopicName: !Ref TopicName
+      Tags:
+        - Key: Service
+          Value: !Select [ 0, !Ref ServiceTags ]
+        - Key: Owner
+          Value: !Select [ 1, !Ref ServiceTags ]
+        - Key: Department
+          Value: !Select [ 2, !Ref ServiceTags ]
+        - Key: Stage
+          Value: !Select [ 3, !Ref ServiceTags ]
+
+Outputs:
+  SnsArn:
+    Description: Arn of the sns topic
+    Value: !Ref Topic
+    Export:
+      Name: !Sub ${DisplayName}-Arn

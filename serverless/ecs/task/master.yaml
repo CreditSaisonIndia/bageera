@@ -1,0 +1,55 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Environment Type
+        Parameters:
+          - EnvironmentType
+
+    ParameterLabels:
+      EnvironmentType:
+        default: Environment Type
+
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Description: Environment of Deployment
+    AllowedValues: [ "dev", "qa", "qa2", "uat", "int", "production" ]
+    Default: "dev"
+
+
+Resources:
+  job:
+
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        TaskName: "bageera-job"
+        CpuSize: "2048"
+        MemorySize: "4096"
+        isScheduled : DISABLED
+        OrganizedBucket: !ImportValue organizedbucket
+        UnorganizedBucket: !ImportValue unorganizedbucket
+        EcsTaskRoleArn: !ImportValue bageera-job-EcsTaskRoleArn
+        EcsExecutionRoleArn: !ImportValue bageera-job-EcsExecutionRoleArn
+        sg: !ImportValue bageeraJobEcsSecurityGroupId
+      TemplateURL: ./template/template.yaml
+
+  pursuer:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        TaskName: "bageera-pursuer"
+        CpuSize: "256"
+        MemorySize: "512"
+        isScheduled : DISABLED
+        OrganizedBucket: !ImportValue organizedbucket
+        UnorganizedBucket: !ImportValue unorganizedbucket
+        EcsTaskRoleArn: !ImportValue bageera-pursuer-EcsTaskRoleArn
+        EcsExecutionRoleArn: !ImportValue bageera-pursuer-EcsExecutionRoleArn
+        sg: !ImportValue bageeraPursuerEcsSecurityGroupId
+      TemplateURL: ./template/template.yaml

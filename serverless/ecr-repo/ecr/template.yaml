@@ -1,0 +1,37 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Environment Type
+        Parameters:
+          - EnvironmentType
+
+    ParameterLabels:
+      EnvironmentType:
+        default: Environment Type
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Description: Environment of Deployment
+
+Resources:
+
+  # pqRepo:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     Parameters:
+  #       EnvironmentType: !Ref EnvironmentType
+  #       RepositoryName: "bageera-pq-repo"
+  #     TemplateURL: ecr.yaml
+  pqPursuerRepo:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EnvironmentType: !Ref EnvironmentType
+        RepositoryName: "bageera-pq-pursuer-repo"
+      TemplateURL: ecr.yaml
+

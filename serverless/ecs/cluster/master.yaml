@@ -1,0 +1,32 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Environment Type
+        Parameters:
+          - EnvironmentType
+
+    ParameterLabels:
+      EnvironmentType:
+        default: Environment Type
+
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Description: Environment of Deployment
+    AllowedValues: [ "dev", "qa", "qa2", "uat", "int", "production" ]
+    Default: "dev"
+
+
+Resources:
+
+  cluster:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EnvironmentType: !Ref EnvironmentType
+      TemplateURL: ./template/template.yaml

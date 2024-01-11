@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'AWS CloudFormation Stack for Lambda Function'
+
+Parameters:
+  EnvironmentType:
+    Description: EnvironmentType
+    Type: String
+    AllowedValues:
+      - 'production'
+      - 'uat'
+      - 'int'
+      - 'qa2'
+      - 'qa'
+      - 'dev'
+    Default: 'dev'
+
+Resources:
+
+  pqOfferBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'pq-offer-bucket-${EnvironmentType}-${AWS::AccountId}-${AWS::Region}'
+      AccessControl: Private
+      # VersioningConfiguration:
+      #   Status: 'Enabled'
+      # BucketEncryption:
+      #   ServerSideEncryptionConfiguration:
+      #   - ServerSideEncryptionByDefault:
+      #       SSEAlgorithm: AES256
+
+
+
+  S3UploadEventTriggerFunction:
+    Dependson: pqOfferBucket
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: ./s3UploadEventTriggerLambda/src
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 30
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonSSMFullAccess
+        - AmazonSNSFullAccess
+        - AmazonS3FullAccess
+      Events:
+        s3Event:
+          Type: S3
+          Properties:
+            Bucket: !Ref pqOfferBucket
+            Events: s3:ObjectCreated:Put
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: prefix
+                    Value: offer/lpc
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !ImportValue pq-offer-bucket-upload-event-sns-Arn
+
+      Tags:
+        Service: bageera
+        Owner: Proton
+        Department: Tech
+        Stage: LOS
+
+  S3EventTrigger:
+    DependsOn: S3UploadEventTriggerFunction
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref S3UploadEventTriggerFunction
+      Principal: 's3.amazonaws.com'
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !GetAtt pqOfferBucket.Arn
+
+
+Outputs:
+  S3UploadEventTriggerFunction:
+    Description: "S3UploadEventTrigger Lambda Function ARN"
+    Value: !GetAtt S3UploadEventTriggerFunction.Arn
+    Export:
+      Name: bageeraS3UploadEventTrigger

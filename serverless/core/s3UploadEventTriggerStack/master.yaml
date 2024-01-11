@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Environment Type
+      Parameters:
+        - EnvironmentType
+
+    ParameterLabels:
+      EnvironmentType:
+        default: Environment Type
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Description: Environment of Deployment
+    AllowedValues: [ 'dev', 'qa', 'qa2', 'uat', 'int', 'production' ]
+    Default: 'dev'
+
+
+Resources:
+
+  s3UploadEventTriggerStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EnvironmentType: !Ref EnvironmentType
+      TemplateURL: ./template.yaml
+
+
+
+  # alertSns:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     Parameters:
+  #       DisplayName: 'pq-job-status-sns'
+  #       TopicName: 'pq-job-status-sns-topic'
+  #       ServiceTags: !Join [ ',', [ bageera, Proton, Tech, LOS ] ]
+  #     TemplateURL: ../baseTemplates/sns.yaml
+  
+  

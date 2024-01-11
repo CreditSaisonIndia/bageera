@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'AWS CloudFormation Sample Template SNS'
+
+Parameters:
+  DisplayName:
+    Description: Display name for the topic
+    Type: String
+  TopicName:
+    Description: Name of the topic
+    Type: String
+  ServiceTags:
+    Description: List of service tags Service, Owner, Department, Stage
+    Type: CommaDelimitedList
+  EnvironmentType:
+    Description: EnvironmentType
+    Type: String
+    AllowedValues:
+      - 'production'
+      - 'uat'
+      - 'int'
+      - 'qa2'
+      - 'qa'
+      - 'dev'
+    Default: 'qa2'
+  QueueArn:
+    Description: Arn of the SQS queue to subscribe to
+    Type: String
+  LambdaFunctionArn:
+    Description: ARN of the Lambda function to subscribe to
+    Type: String
+    
+
+
+    
+Resources:
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Ref DisplayName
+      TopicName: !Ref TopicName
+      Tags:
+        - Key: Service
+          Value: !Select [ 0, !Ref ServiceTags ]
+        - Key: Owner
+          Value: !Select [ 1, !Ref ServiceTags ]
+        - Key: Department
+          Value: !Select [ 2, !Ref ServiceTags ]
+        - Key: Stage
+          Value: !Select [ 3, !Ref ServiceTags ]
+
+  QueueSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: sqs
+      TopicArn: !Ref Topic
+      Endpoint: !Ref QueueArn
+
+  LambdaSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: lambda
+      TopicArn: !Ref Topic
+      Endpoint: !Ref LambdaFunctionArn
+
+  LambdaFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunctionArn
+      Principal: sns.amazonaws.com
+
+Outputs:
+  SnsArn:
+    Description: Arn of the sns topic
+    Value: !Ref Topic
+    Export:
+      Name: !Sub ${DisplayName}-Arn
