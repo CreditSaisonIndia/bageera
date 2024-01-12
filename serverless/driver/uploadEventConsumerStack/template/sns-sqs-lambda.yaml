@@ -71,11 +71,22 @@ Resources:
         - Key: Stage
           Value: !Select [ 3, !Ref ServiceTags ]
 
+  alertSns:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        DisplayName: 'pq-job-status-sns'
+        TopicName: 'pq-job-status-sns-topic'
+        ServiceTags: !Join [ ',', [ bageera, Proton, Tech, LOS ] ]
+      TemplateURL: ./sns.yaml
+
   RunEcsTaskOrSkipFunction:
-    DependsOn: pqJobQueue
+    DependsOn: 
+      - pqJobQueue
+      - alertSns
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: ./runEcsTaskOrSkip/src
+      CodeUri: ../runEcsTaskOrSkip/src
       Handler: app.lambda_handler
       Runtime: python3.11
       Timeout: 120
@@ -92,6 +103,7 @@ Resources:
           ENV: !Ref EnvironmentType
           BAGEERA_ECS_JOB_SG_ID: !Ref BageeraJobEcsSecurityGroupId
           SERVICE_SUBNETS: !Ref ServiceSubnets
+          ALERT_SNS: !ImportValue pq-job-status-sns-Arn
 
   Topic:
     DependsOn: pqJobQueue

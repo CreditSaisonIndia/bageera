@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Environment Type
+      Parameters:
+        - EnvironmentType
+
+    ParameterLabels:
+      EnvironmentType:
+        default: Environment Type
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Description: Environment of Deployment
+    AllowedValues: [ 'dev', 'qa', 'qa2', 'uat', 'int', 'production' ]
+    Default: 'dev'
+
+
+Resources:
+
+  uploadEventConsumerStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        DisplayName: 'pq-offer-bucket-upload-event-sns'
+        TopicName: 'pq-offer-bucket-upload-event-sns-topic'
+        QueueName: 'pq-job-queue'
+        ServiceTags: !Join [ ',', [ bageera, Proton, Tech, LOS ] ]
+        EnvironmentType: !Ref EnvironmentType
+        BageeraClusterArn: !ImportValue bageeraEcsCluster-Arn
+        BageeraJobDefinitionArn: !ImportValue bageera-job-definition-Arn
+        BageeraJobEcsSecurityGroupId: !ImportValue bageeraJobEcsSecurityGroupId
+        ServiceSubnets: !Join [',', !Split [',', !ImportValue ServiceSubnet]]
+      TemplateURL: ./template/sns-sqs-lambda.yaml
+
+
+  # s3UploadEventTriggerStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     Parameters:
+  #       EnvironmentType: !Ref EnvironmentType
+  #     TemplateURL: ./lambdas/s3UploadEventTriggerLambda/template.yaml
+
+
+
+  # alertSns:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     Parameters:
+  #       DisplayName: 'pq-job-status-sns'
+  #       TopicName: 'pq-job-status-sns-topic'
+  #       ServiceTags: !Join [ ',', [ bageera, Proton, Tech, LOS ] ]
+  #     TemplateURL: ./sns.yaml
+  
+  

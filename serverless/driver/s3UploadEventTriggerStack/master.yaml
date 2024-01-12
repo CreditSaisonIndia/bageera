@@ -22,28 +22,12 @@ Parameters:
 
 Resources:
 
-  uploadEventConsumerStack:
+  s3UploadEventTriggerStack:
     Type: AWS::CloudFormation::Stack
     Properties:
       Parameters:
-        DisplayName: 'pq-offer-bucket-upload-event-sns'
-        TopicName: 'pq-offer-bucket-upload-event-sns-topic'
-        QueueName: 'pq-job-queue'
-        ServiceTags: !Join [ ',', [ bageera, Proton, Tech, LOS ] ]
         EnvironmentType: !Ref EnvironmentType
-        BageeraClusterArn: !ImportValue bageeraEcsCluster-Arn
-        BageeraJobDefinitionArn: !ImportValue bageera-job-definition-Arn
-        BageeraJobEcsSecurityGroupId: !ImportValue bageeraJobEcsSecurityGroupId
-        ServiceSubnets: !Join [',', !Split [',', !ImportValue ServiceSubnet]]
-      TemplateURL: ./sns-sqs-lambda.yaml
-
-
-  # s3UploadEventTriggerStack:
-  #   Type: AWS::CloudFormation::Stack
-  #   Properties:
-  #     Parameters:
-  #       EnvironmentType: !Ref EnvironmentType
-  #     TemplateURL: ./lambdas/s3UploadEventTriggerLambda/template.yaml
+      TemplateURL: ./template/template.yaml
 
 
 

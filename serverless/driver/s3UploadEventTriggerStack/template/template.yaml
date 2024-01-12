@@ -37,7 +37,7 @@ Resources:
     Dependson: pqOfferBucket
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: ./s3UploadEventTriggerLambda/src
+      CodeUri: ../s3UploadEventTriggerLambda/src
       Handler: app.lambda_handler
       Runtime: python3.11
       Timeout: 30
@@ -60,6 +60,10 @@ Resources:
       Environment:
         Variables:
           SNS_TOPIC_ARN: !ImportValue pq-offer-bucket-upload-event-sns-Arn
+          PQ_JOB_QUEUE_URL: !ImportValue pq-job-queue-Url
+          ENV: !Ref EnvironmentType
+          ALERT_SNS: !ImportValue pq-job-status-sns-Arn
+
 
       Tags:
         Service: bageera

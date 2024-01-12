@@ -6,6 +6,12 @@ import logging
 import os
 
 PQ_JOB_QUEUE_URL = os.getenv('PQ_JOB_QUEUE_URL')
+BAGEERA_CLUSTER_ARN = os.getenv('BAGEERA_CLUSTER_ARN')
+BAGEERA_ECS_JOB_SG_ID = os.getenv('BAGEERA_ECS_JOB_SG_ID')
+BAGEERA_JOB_DEFINITION_ARN = os.getenv('BAGEERA_JOB_DEFINITION_ARN')
+ENV = os.getenv('ENV')
+SERVICE_SUBNETS = os.getenv('SERVICE_SUBNETS')
+ALERT_SNS_ARN = os.getenv('ALERT_SNS')
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -26,11 +32,11 @@ def lambda_handler(event, context):
     file_name = os.path.basename(object_key)
     
     # Values to pass to the ECS task
-    task_definition = 'bageera-job-definition'
-    cluster = 'bageeraEcsCluster'
+    task_definition = BAGEERA_JOB_DEFINITION_ARN
+    cluster = BAGEERA_CLUSTER_ARN
     launch_type = 'FARGATE'  # or EC2 depending on your setup
-    subnet = 'subnet-02bf49ba39bfed0a2'
-    security_group = 'sg-0c4dbe2de90e1a522'
+    subnet = SERVICE_SUBNETS
+    security_group = BAGEERA_ECS_JOB_SG_ID
 
     # Additional parameters for your task
     container_overrides = [
@@ -54,10 +60,13 @@ def lambda_handler(event, context):
                     'name': 'requestQueueUrl',
                     'value': PQ_JOB_QUEUE_URL,
                 },
-
+                {
+                    'name': 'alertSnsArn',
+                    'value': ALERT_SNS_ARN,
+                },
                 {
                     'name': 'environment',
-                    'value': "dev",
+                    'value': ENV,
                 },
             ],
             # No need to specify 'command' if it's already defined in the Dockerfile CMD
@@ -72,7 +81,7 @@ def lambda_handler(event, context):
         cluster=cluster,
         desiredStatus='RUNNING'  # You can adjust the status based on your requirements
     )
-    task_definition_arn="arn:aws:ecs:us-east-1:971709774307:task-definition/bageera-job-definition:3"
+    task_definition_arn=BAGEERA_JOB_DEFINITION_ARN
 
     # Check if any tasks match the specified task definition ARN
     matching_tasks = [task for task in tasks.get('taskArns', []) if ecs.describe_tasks(cluster=cluster, tasks=[task])['tasks'][0]['taskDefinitionArn'] == task_definition_arn]
@@ -102,7 +111,10 @@ def lambda_handler(event, context):
         try:
             # Start the ECS task
             response = ecs.run_task(**run_task_params)
-            print(response)
+            
+            logger.info("Task started successfully")
+            
+            logger.info("RUN TASK RESPONSE : ", response)
             return {
                 'statusCode': 200,
                 'body': json.dumps('Task started successfully')

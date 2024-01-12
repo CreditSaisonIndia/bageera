@@ -6,7 +6,10 @@ import os
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
-SNS_TOPIC_ARN = os.getenv('SNS_TOPIC_ARN')
+UPLOAD_EVENT_SNS_TOPIC_ARN = os.getenv('SNS_TOPIC_ARN')
+ALERT_SNS_TOPIC_ARN = os.getenv('ALERT_SNS')
+ENV = os.getenv('ENV')
+PQ_JOB_QUEUE_URL = os.getenv('PQ_JOB_QUEUE_URL')
 
 def lambda_handler(event, context):
     # Extract necessary information from the S3 event
@@ -32,21 +35,16 @@ def lambda_handler(event, context):
         'objectKey': object_key,
         'lpc':path_elements[2],
         'fileName':file_name,
-        'environment':"dev",
-        'requestQueueUrl':"https://sqs.us-east-1.amazonaws.com/971709774307/pq-job-queue-us-east-1"
-        # 'dbUserName':"masteruser",
-        # 'dbPassword':"szkeUq2DbgHAUnW",
-        # 'dbHost':"ksf-cluster-v2-us-east-1.cluster-cpktqakm2slz.us-east-1.rds.amazonaws.com",
-        # 'dbPort':"5432",
-        # 'dbName':"proddb",
-        # 'schema':"scarlet",
-        # 'efsBasePath':"/app/bageera/temp/data",
-        # 'environment':"dev"
+        'environment':ENV,
+        'requestQueueUrl':PQ_JOB_QUEUE_URL,
+        'alertSnsArn':ALERT_SNS_TOPIC_ARN
     }
+    
+    logger.info("MESSAGE : %s", json.dumps(message))
 
     # Publish the message to the SNS topic
     response = sns_client.publish(
-        TopicArn=SNS_TOPIC_ARN,
+        TopicArn=UPLOAD_EVENT_SNS_TOPIC_ARN,
         Message=json.dumps({'default': json.dumps(message)}),
         MessageStructure='json'
     )

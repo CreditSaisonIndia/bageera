@@ -14,6 +14,7 @@ type Application struct {
 	RunType       string
 	PqJobQueueUrl string
 	EfsBasePath   string
+	AlertSnsArn   string
 }
 
 var ApplicationSetting = &Application{}
@@ -83,6 +84,7 @@ func SetUp(env string) {
 		ApplicationSetting.Region = os.Getenv("region")
 		ApplicationSetting.PqJobQueueUrl = os.Getenv("requestQueueUrl")
 		ApplicationSetting.RunType = os.Getenv("environment")
+		ApplicationSetting.AlertSnsArn = os.Getenv("alertSnsArn")
 
 		DatabaseSetting.MasterDbHost = os.Getenv("dbHost")
 
