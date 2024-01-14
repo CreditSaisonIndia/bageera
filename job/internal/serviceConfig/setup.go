@@ -15,6 +15,10 @@ type Application struct {
 	PqJobQueueUrl string
 	EfsBasePath   string
 	AlertSnsArn   string
+	FileName      string
+	Lpc           string
+	BucketName    string
+	ObjectKey     string
 }
 
 var ApplicationSetting = &Application{}
@@ -85,6 +89,10 @@ func SetUp(env string) {
 		ApplicationSetting.PqJobQueueUrl = os.Getenv("requestQueueUrl")
 		ApplicationSetting.RunType = os.Getenv("environment")
 		ApplicationSetting.AlertSnsArn = os.Getenv("alertSnsArn")
+		ApplicationSetting.BucketName = os.Getenv("bucketName")
+		ApplicationSetting.Lpc = os.Getenv("lpc")
+		ApplicationSetting.ObjectKey = os.Getenv("objectKey")
+		ApplicationSetting.FileName = os.Getenv("fileName")
 
 		DatabaseSetting.MasterDbHost = os.Getenv("dbHost")
 
@@ -104,4 +112,32 @@ func mapTo(section string, v interface{}) {
 	if err != nil {
 		log.Fatalf("Cfg.MapTo %s err: %v", section, err)
 	}
+}
+
+func PrintSettings() {
+	fmt.Println("Application Settings:")
+	fmt.Printf("Region: %s\n", ApplicationSetting.Region)
+	fmt.Printf("RunType: %s\n", ApplicationSetting.RunType)
+	fmt.Printf("PqJobQueueUrl: %s\n", ApplicationSetting.PqJobQueueUrl)
+	fmt.Printf("EfsBasePath: %s\n", ApplicationSetting.EfsBasePath)
+	fmt.Printf("AlertSnsArn: %s\n", ApplicationSetting.AlertSnsArn)
+	fmt.Printf("FileName: %s\n", ApplicationSetting.FileName)
+	fmt.Printf("Lpc: %s\n", ApplicationSetting.Lpc)
+	fmt.Printf("BucketName: %s\n", ApplicationSetting.BucketName)
+	fmt.Printf("ObjectKey: %s\n", ApplicationSetting.ObjectKey)
+
+	fmt.Println("\nServer Settings:")
+	fmt.Printf("RunMode: %s\n", ServerSetting.RunMode)
+	fmt.Printf("HttpPort: %d\n", ServerSetting.HttpPort)
+
+	fmt.Println("\nDatabase Settings:")
+	fmt.Printf("Type: %s\n", DatabaseSetting.Type)
+	fmt.Printf("User: %s\n", DatabaseSetting.User)
+	fmt.Printf("Password: %s\n", DatabaseSetting.Password)
+	fmt.Printf("MasterDbHost: %s\n", DatabaseSetting.MasterDbHost)
+	fmt.Printf("ReaderDbHost: %s\n", DatabaseSetting.ReaderDbHost)
+	fmt.Printf("Name: %s\n", DatabaseSetting.Name)
+	fmt.Printf("TablePrefix: %s\n", DatabaseSetting.TablePrefix)
+	fmt.Printf("Port: %s\n", DatabaseSetting.Port)
+	fmt.Printf("MigrationVersion: %d\n", DatabaseSetting.MigrationVersion)
 }

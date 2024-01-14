@@ -9,14 +9,17 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 )
 
 func Consolidate() {
 	//"/Users/taylor/workspace/go/offer/PSB/file_PSB_500000/chunks"
-
+	LOGGER := customLogger.GetLogger()
 	chunksDir := utils.GetChunksDir()
+	LOGGER.Info("chunksDir :", chunksDir)
 	fileName, _ := utils.GetFileName()
+	LOGGER.Info("fileName :", fileName)
 	// Retrieve only original CSV files in the chunks directory
 	s_f_dir := filepath.Join(chunksDir, fileName+"_*_*.csv")
 

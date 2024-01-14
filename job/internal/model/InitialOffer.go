@@ -3,8 +3,9 @@ package model
 import (
 	"database/sql"
 	"encoding/json"
-	"github.com/jinzhu/gorm/dialects/postgres"
 	"time"
+
+	"github.com/jinzhu/gorm/dialects/postgres"
 )
 
 type InitialOffer struct {

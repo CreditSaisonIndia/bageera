@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
-	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/queueConsumer"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 )
@@ -20,10 +19,6 @@ func main() {
 	LOGGER.Info("Reading and Setting up Server,Database and Application Level Properties.")
 	serviceConfig.SetUp(env)
 	LOGGER.Info("Properties configuration successful.")
-
-	LOGGER.Info("Setting up the database connection.")
-	database.InitGormPool()
-	LOGGER.Info("Database connection successfully setup")
 
 	retries := 5
 

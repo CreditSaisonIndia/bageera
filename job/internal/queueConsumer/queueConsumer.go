@@ -1,6 +1,7 @@
 package queueConsumer
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
@@ -9,12 +10,15 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/consolidation"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
+	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion"
+	"github.com/CreditSaisonIndia/bageera/internal/model"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
@@ -104,19 +108,83 @@ func Consume() error {
 			setConfigFromSqsMessage(*msg.Body)
 			startTime := time.Now()
 
-			log.Printf("*********BEGIN********")
-
-			//logFile, err := fileUtilityWrapper.AddLogFileSugar()
-			if err != nil {
-				LOGGER.Info("Error while creating log file : ", err)
-				return err
+			LOGGER.Info("*********BEGIN********")
+			baseAlert := model.BaseAlert{
+				FileName: serviceConfig.ApplicationSetting.FileName,
+				Lpc:      serviceConfig.ApplicationSetting.Lpc,
+				Status:   "IN_PROGRESS",
 			}
+			awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+			//logFile, err := fileUtilityWrapper.AddLogFileSugar()
+			// if err != nil {
+			// 	LOGGER.Info("Error while creating log file : ", err)
+			// 	return err
+			// }
 			chunksDir := utils.GetChunksDir()
 			fileUtilityWrapper.DeleteDirIfExist(chunksDir)
 			logFile, err := fileUtilityWrapper.AddLogFile()
-			path := fileUtilityWrapper.S3FileDownload()
+			path, err := fileUtilityWrapper.S3FileDownload()
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				break
+			}
+
 			LOGGER.Info("downloaded file path:", path)
-			splitter.SplitCsv()
+
+			LOGGER.Info("Splitting...")
+			err = splitter.SplitCsv()
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
+				break
+			}
+
+			// Initialize the global CustomDBManager from the new package
+			// database.InitSqlxDb()
+			LOGGER.Info("SETTING SESSION FOR DATABASE")
+			opts := session.Options{Config: aws.Config{
+				CredentialsChainVerboseErrors: aws.Bool(true),
+				Region:                        aws.String(serviceConfig.ApplicationSetting.Region),
+				MaxRetries:                    aws.Int(3),
+			}}
+			sess := session.Must(session.NewSessionWithOptions(opts))
+
+			LOGGER.Info("DONE SETTING SESSION FOR DATABASE")
+			// Create a peer instance
+			p := &database.Peer{
+				Name:        "peer",
+				Logger:      customLogger.GetLogger(), // Adjust the logger as needed
+				IAMRoleAuth: true,                     // Set to true if you want to use IAM role authentication
+			}
+
+			// Define your database configuration
+			cfg := database.DBConfig{
+				Host:        serviceConfig.DatabaseSetting.MasterDbHost,
+				Port:        5432, // Adjust the port as needed
+				User:        serviceConfig.DatabaseSetting.User,
+				Password:    serviceConfig.DatabaseSetting.Password,
+				SSLMode:     "require", // Adjust the SSL mode as needed
+				Name:        serviceConfig.DatabaseSetting.Name,
+				MinConn:     5,
+				MaxConn:     20,
+				LifeTime:    "14m",
+				IdleTime:    "5m",
+				LogLevel:    "info", // Adjust the log level as needed
+				Region:      serviceConfig.ApplicationSetting.Region,
+				IAMRoleAuth: true, // Set to true if you want to use IAM role authentication
+			}
+
+			// Get a database connection pool
+			pool, err := p.GetDBPool(context.Background(), cfg, sess)
+			if err != nil {
+				LOGGER.Error("ERRON WHILE INITIALIZING DB POOL : ", err)
+				serviceConfig.PrintSettings()
+				break
+			}
+
+			// Close the pool when you're done with it
+			defer pool.Close()
 			insertion.BeginInsertion()
 
 			consolidation.Consolidate()
@@ -129,7 +197,9 @@ func Consume() error {
 			func(logFile *os.File) {
 				err := logFile.Close()
 				if err != nil {
-					LOGGER.Info("Error While closing the log file")
+					LOGGER.Error("Error While closing the log file: ", err)
+					serviceConfig.PrintSettings()
+
 				}
 			}(logFile)
 
@@ -140,8 +210,17 @@ func Consume() error {
 			}
 			_, err = sqsClient.DeleteMessage(deleteParams)
 			if err != nil {
-				LOGGER.Info("Error deleting message:", err)
+				LOGGER.Error("Error deleting message:", err)
+				serviceConfig.PrintSettings()
 			}
+			baseAlert = model.BaseAlert{
+				FileName: serviceConfig.ApplicationSetting.FileName,
+				Lpc:      serviceConfig.ApplicationSetting.Lpc,
+				Status:   "SUCCESS",
+			}
+			awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+			LOGGER.Info("**********CLOSING POOL************")
+			pool.Close()
 		}
 	}
 	return nil
@@ -201,24 +280,30 @@ func setConfigFromSqsMessage(jsonMessage string) {
 	// Extracted values
 
 	fileName := s3UploadEvent.FileName
+	serviceConfig.ApplicationSetting.FileName = fileName
 	serviceConfig.Set("fileName", fileName)
 
 	bucketName := s3UploadEvent.BucketName
+	serviceConfig.ApplicationSetting.BucketName = bucketName
 	serviceConfig.Set("bucketName", bucketName)
 
 	objectKey := s3UploadEvent.ObjectKey
+	serviceConfig.ApplicationSetting.ObjectKey = objectKey
 	serviceConfig.Set("objectKey", objectKey)
 
 	lpc := s3UploadEvent.LPC
+	serviceConfig.ApplicationSetting.Lpc = lpc
 	serviceConfig.Set("lpc", lpc)
 
-	execution := s3UploadEvent.Execution
-	serviceConfig.Set("execution", execution)
+	// execution := s3UploadEvent.Execution
+	// serviceConfig.Set("execution", execution)
 
 	region := s3UploadEvent.Region
+	serviceConfig.ApplicationSetting.Region = region
 	serviceConfig.Set("region", region)
 
 	requestQueueUrl := s3UploadEvent.RequestQueueUrl
+	serviceConfig.ApplicationSetting.PqJobQueueUrl = requestQueueUrl
 	serviceConfig.Set("requestQueueUrl", requestQueueUrl)
 
 	//dbUsername := s3UploadEvent.DBUserName

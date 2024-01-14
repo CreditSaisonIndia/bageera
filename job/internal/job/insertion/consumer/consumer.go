@@ -1,12 +1,15 @@
 package consumer
 
 import (
+	"context"
 	"database/sql"
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,29 +18,50 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/model"
 	"github.com/jinzhu/gorm/dialects/postgres"
+	"github.com/lib/pq"
 )
 
-var maxConsumerGoroutines = 50
+var maxConsumerGoroutines = 30
 var ConsumerConcurrencyCh = make(chan struct{}, maxConsumerGoroutines)
 
 func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *sync.WaitGroup) {
 	LOGGER := customLogger.GetLogger()
+	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(offers)))
 	defer consumerWaitGroup.Done()
 	ConsumerConcurrencyCh <- struct{}{}
 
-	gormDb := database.GetDb()
+	// customDB := dbmanager.GlobalDBManager.GetDB()
+	// defer dbmanager.GlobalDBManager.ReleaseDB(customDB)
+
+	// db := customDB.DB
+	// if db == nil {
+	// 	// Handle the case where DB is nil
+	// 	return
+	// }
+
+	// if err != nil {
+	// 	LOGGER.Error("Error while database.InitSqlxDb:", err)
+	// 	<-ConsumerConcurrencyCh
+	// 	return
+	// }
+
 	chunkFileNameWithoutExtension := filepath.Base(fileName[:len(fileName)-len(filepath.Ext(fileName))])
-	LOGGER.Info("chunkFileNameWithoutExtension : ", chunkFileNameWithoutExtension)
+
 	successFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_success.csv")
+
 	successFile, err := os.Create(successFilePath)
 	if err != nil {
-		LOGGER.Fatal("Error creating success.csv:", err)
+		LOGGER.Error("Error creating success.csv:", err)
+		<-ConsumerConcurrencyCh
+		return
 	}
 	defer successFile.Close()
 	failureFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_failure.csv")
 	failureFile, err := os.Create(failureFilePath)
 	if err != nil {
-		LOGGER.Fatal("Error creating failure.csv:", err)
+		LOGGER.Error("Error creating failure.csv:", err)
+		<-ConsumerConcurrencyCh
+		return
 	}
 	defer failureFile.Close()
 
@@ -47,7 +71,8 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 
 	header := []string{"partner_loan_id", "offer_details"}
 	if err := successWriter.Write(header); err != nil {
-		LOGGER.Info("Error writing CSV header:", err)
+		LOGGER.Error("Error writing CSV header:", err)
+		<-ConsumerConcurrencyCh
 		return
 	}
 
@@ -56,51 +81,135 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 
 	if err := failureWriter.Write(header); err != nil {
 		LOGGER.Info("Error writing CSV header:", err)
+		<-ConsumerConcurrencyCh
 		return
 	}
+	col := []string{"created_at", "is_active", "is_deleted", "updated_at", "app_form_id", "partner_loan_id",
+		"status", "offer_sections", "description", "remarks",
+		"attempt"}
 
 	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(offers)))
-	chunkSize := 1000
-	chunkNUmber := 0
-	// Convert offers to DbInitialOffer and add to a slice
+	chunkSize := 2000
+	chunkNumber := 0
+
+	// ... (existing code)
+
 	for i := 0; i < len(offers); i += chunkSize {
-		chunkNUmber++
-		end := i + chunkSize
-		if end > len(offers) {
-			end = len(offers)
+		chunkNumber++
+		var (
+			placeholders []string
+			vals         []interface{}
+		)
+
+		chunkEnd := i + chunkSize
+		if chunkEnd > len(offers) {
+			chunkEnd = len(offers)
 		}
 
-		chunk := offers[i:end]
+		chunk := offers[i:chunkEnd]
 
-		var proddbOffers []model.InitialOffer
-		for _, offer := range chunk {
+		//var proddbOffers []model.InitialOffer
+		for index, offer := range chunk {
+
 			proddbOffer, err := convertToProddbOffer(offer)
 			if err != nil {
-				LOGGER.Info("Error converting offer:", err)
+				LOGGER.Error("Error converting offer:", err)
 				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
 				continue
 			}
-			proddbOffers = append(proddbOffers, proddbOffer)
+			//print("proddbOffer.IsActive : ", reflect.TypeOf(proddbOffer.IsActive))
+			placeholders = append(placeholders, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+				index*11+1,
+				index*11+2,
+				index*11+3,
+				index*11+4,
+				index*11+5,
+				index*11+6,
+				index*11+7,
+				index*11+8,
+				index*11+9,
+				index*11+10,
+				index*11+11,
+			))
+
+			vals = append(vals, proddbOffer.CreatedAt, proddbOffer.IsActive, proddbOffer.IsDeleted, proddbOffer.UpdatedAt, proddbOffer.AppFormID, proddbOffer.PartnerLoanID, proddbOffer.Status, proddbOffer.OfferSections, proddbOffer.Description, proddbOffer.Remarks, proddbOffer.Attempt)
 		}
-		// Use gormDb.Create with variadic arguments to perform a batch insert
-		if err := gormDb.Create(proddbOffers).Error; err != nil {
-			LOGGER.Info("Error while creating statements:", err)
-			for _, offer := range offers {
+
+		// print("placeholders : ", placeholders)
+		// print("vals: ", vals)
+
+		// Construct the SQL query
+		query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s", strings.Join(col, ", "), strings.Join(placeholders, ","))
+		LOGGER.Info("Worker : " + fileName + "--->>>> GETTTING DB")
+		// Now you can use the pool to get a database connection
+		conn, err := database.GetPgxPool().Acquire(context.Background())
+		if err != nil {
+			LOGGER.Error("Error : Worker : "+fileName+" ------>  accquire ", err)
+			for _, offer := range chunk {
 				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
 			}
+			<-ConsumerConcurrencyCh
 			return
 		}
-		LOGGER.Info("------------INSERTED--------------")
-		LOGGER.Info("fileName : ", fileName, "CHUNK NUMBER : ", chunkNUmber)
 
-		for _, offer := range offers {
-			csvUtilityWrapper.WriteOfferToCSV(successWriter, offer)
+		tx, err := conn.Begin(context.Background())
+		if err != nil {
+			LOGGER.Error("Error : Worker : "+fileName+"------> conn.Begin(context.Background()) ", err)
+			for _, offer := range chunk {
+				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
+			}
+			<-ConsumerConcurrencyCh
+			return
 		}
 
+		_, err = tx.Exec(context.Background(), query, vals...)
+		if err != nil {
+			LOGGER.Error("Error : Worker : "+fileName+" ------> tx.Exe ", err)
+			tx.Rollback(context.Background())
+			for _, offer := range chunk {
+				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
+			}
+			<-ConsumerConcurrencyCh
+			return
+		}
+
+		// Commit the transaction inside the loop
+		err = tx.Commit(context.Background())
+		if err != nil {
+			LOGGER.Info("Error : ------>  committing transaction:", err)
+			tx.Rollback(context.Background())
+			for _, offer := range chunk {
+				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
+			}
+			<-ConsumerConcurrencyCh
+			return
+		}
+
+		LOGGER.Info("------------INSERTED--------------")
+		LOGGER.Info("fileName : ", chunkFileNameWithoutExtension, "---->>>>>>CHUNK NUMBER : ", chunkNumber)
+
+		for _, offer := range chunk {
+			csvUtilityWrapper.WriteOfferToCSV(successWriter, offer)
+		}
+		LOGGER.Info("------------RELEASING CONNECTION--------------")
+		conn.Release()
 	}
 
-	LOGGER.Info("Worker finished :", fileName, "------> Inserted ", chunkNUmber, " times")
+	LOGGER.Info("Worker finished :", fileName, "------> Inserted ", chunkNumber, " times")
 	<-ConsumerConcurrencyCh
+}
+
+func convertToInterfaceSlice(slice []interface{}) []interface{} {
+	result := make([]interface{}, len(slice))
+	for i, v := range slice {
+		switch val := v.(type) {
+		case bool:
+			result[i] = pq.BoolArray{val}
+		default:
+			result[i] = v
+		}
+	}
+	return result
 }
 
 func convertToProddbOffer(offer model.Offer) (model.InitialOffer, error) {

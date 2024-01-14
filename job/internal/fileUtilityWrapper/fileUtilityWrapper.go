@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"go.uber.org/zap"
 )
@@ -55,24 +55,20 @@ func (pw *progressWriter) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func S3FileDownload() (path string) {
+func S3FileDownload() (string, error) {
 	LOGGER = customLogger.GetLogger()
 	//region := config.Get("region")
-	bucketName := serviceConfig.Get("bucketName")
-	objectKey := serviceConfig.Get("objectKey")
+	bucketName := serviceConfig.ApplicationSetting.BucketName
+	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 	// Specify the S3 endpoint for your region
 
-	// Create a new AWS session with the S3 endpoint
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(os.Getenv("AWS_DEFAULT_REGION")),
-	})
-
+	s3Client, err := awsClient.GetS3Client()
 	if err != nil {
-		LOGGER.Error("Error creating AWS session:", err)
+		LOGGER.Error("Error creating S3 Client :", err)
+		return "", err
 	}
 
 	// Create an S3 service client
-	s3Client := s3.New(sess)
 
 	// Download the file from S3
 	downloadOutput, err := s3Client.GetObject(&s3.GetObjectInput{
@@ -92,30 +88,23 @@ func S3FileDownload() (path string) {
 
 	//Provide a local file path for saving the downloaded file
 	baseDir := utils.GetBaseDir()
+	LOGGER.Info("BASE FILE PATH : ", baseDir)
 	_, fileName := utils.GetFileName()
 	downloadPath := filepath.Join(baseDir, fileName)
-	localFile, err := os.Create(downloadPath)
-	// Get the absolute path
 	absolutePath, err := filepath.Abs(downloadPath)
+	localFile, err := os.Create(absolutePath)
+	// Get the absolute path
 
 	// Check for errors
 	if err != nil {
-		fmt.Println("Error:", err)
-		return
+		LOGGER.Error("Error Creating local file :", err)
+		return "", err
 	}
 
 	// Print the absolute path
 	LOGGER.Info("Absolute path of the file:", absolutePath)
 
-	if err != nil {
-		LOGGER.Fatal("Error creating local file:", err)
-	}
-	defer func(localFile *os.File) {
-		err := localFile.Close()
-		if err != nil {
-			LOGGER.Fatal("Error creating local file:", err)
-		}
-	}(localFile)
+	defer closeFile(localFile)
 
 	if serviceConfig.ApplicationSetting.RunType == "local" {
 
@@ -127,19 +116,31 @@ func S3FileDownload() (path string) {
 		// Copy the S3 file content to the local file
 		_, err = io.Copy(localFile, io.TeeReader(downloadOutput.Body, progressWriter))
 		if err != nil {
-			LOGGER.Fatal("Error copying file content:", err)
+			LOGGER.Error("Error copying file content:", err)
+			return "", err
 		}
 	} else {
 		// Copy the S3 file content to the local file
 		LOGGER.Info("Downloading File...")
 		_, err = io.Copy(localFile, downloadOutput.Body)
 		if err != nil {
-			LOGGER.Fatal("Error copying file content:", err)
+			LOGGER.Error("Error copying file content:", err)
+			return "", err
 		}
 	}
 
-	LOGGER.Info("\nFile downloaded successfully to %s\n", downloadPath)
-	return downloadPath
+	LOGGER.Info("File downloaded successfully to : ", absolutePath)
+	return absolutePath, nil
+}
+
+func closeFile(localFile *os.File) (string, error) {
+	// Close the file only when processing is complete
+	err := localFile.Close()
+	if err != nil {
+		LOGGER.Error("Error creating local file:", err)
+		return "", err
+	}
+	return "", nil
 }
 
 //func AddLogFileSugar() (*os.File, error) {

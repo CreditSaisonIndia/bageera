@@ -15,7 +15,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/model"
 )
 
-var maxProducerGoroutines = 50
+var maxProducerGoroutines = 30
 var ProducerConcurrencyCh = make(chan struct{}, maxProducerGoroutines)
 
 func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *sync.WaitGroup) {
@@ -27,7 +27,7 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	LOGGER.Info("Starting producer for : ", filePath)
 	reader, err := fileUtilityWrapper.CreateReader(filePath)
 	if err != nil {
-		LOGGER.Info("Error creating reader:", err)
+		LOGGER.Error("Error creating reader:", err)
 		return
 	}
 
@@ -36,7 +36,7 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 		if closer, ok := reader.(io.Closer); ok {
 			err := closer.Close()
 			if err != nil {
-				LOGGER.Info("Error closing file:", err)
+				LOGGER.Error("Error closing file:", err)
 			}
 		}
 	}()
@@ -46,15 +46,15 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	// Read the CSV file and send chunks to the channel
 	header, err := csvReader.Read()
 	if err != nil {
-		LOGGER.Info("Headers", header)
+		LOGGER.Error("Headers", header)
 	}
 
 	offers, err := ReadOffers(csvReader)
 	if err == io.EOF {
-		LOGGER.Info("Reached End of the file with overall size of : ", len(offers))
+		LOGGER.Error("Reached End of the file with overall size of : ", len(offers))
 	} else if err != nil {
-		LOGGER.Info("Error while reading fileName: : ", fileName)
-		LOGGER.Info("Producer finished : ", filePath)
+		LOGGER.Error("Error while reading fileName: : ", fileName)
+		LOGGER.Error("Producer finished : ", filePath)
 		<-ProducerConcurrencyCh
 		return
 	}
@@ -64,6 +64,7 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	LOGGER.Info("Chunk 1st parnterLoanId   " + offers[0].PartnerLoanID)
 	LOGGER.Info("Chunk Last parnterLoanId   " + offers[len(offers)-1].PartnerLoanID)
 	consumerWg.Add(1)
+
 	consumer.Worker(outputDir, fileName, offers, consumerWg)
 
 	LOGGER.Info("Producer finished : ", filePath)

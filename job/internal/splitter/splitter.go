@@ -15,14 +15,14 @@ import (
 
 var LOGGER *zap.SugaredLogger
 
-func SplitCsv() {
+func SplitCsv() error {
 
 	LOGGER := customLogger.GetLogger()
 	outputChunkDir := utils.GetChunksDir()
 
 	if err := os.MkdirAll(outputChunkDir, os.ModePerm); err != nil {
 		LOGGER.Info("Error creating directory:", err)
-		return
+		return err
 	}
 
 	splitter := splitCsv.New()
@@ -43,16 +43,16 @@ func SplitCsv() {
 		fileUtilityWrapper.Copy(fileName, fileNameWithoutExt, inputPath, outputChunkDir)
 	} else if err != nil {
 		LOGGER.Info("Error While Splitting :", err)
-		return
+		return err
 	}
 	csvCount, err := countCSVFiles(outputChunkDir)
 	if err != nil {
 		LOGGER.Info("Error counting CSV files:", err)
-		return
+		return err
 	}
 
 	log.Printf("Total CSV files in %s: %d\n", outputChunkDir, csvCount)
-
+	return nil
 }
 
 func countCSVFiles(directory string) (int, error) {

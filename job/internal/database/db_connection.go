@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"net"
+	"runtime"
 	"strings"
 	"time"
 
@@ -118,7 +119,22 @@ func (la *LocalAuth) GetConnectionString(ctx context.Context, lookup LookupCNAME
 func (id *iamDB) Connect(ctx context.Context) (driver.Conn, error) {
 
 	LOGGER := customLogger.GetLogger()
+
 	LOGGER.Info("Connect")
+
+	// Capture the full stack trace
+	var stackTrace strings.Builder
+	stackTrace.WriteString("Full Stack Trace:\n")
+	for i := 1; ; i++ {
+		_, file, line, ok := runtime.Caller(i)
+		if !ok {
+			break
+		}
+		stackTrace.WriteString(fmt.Sprintf("%s:%d\n", file, line))
+	}
+
+	LOGGER.Info(stackTrace.String())
+
 	connectionString, err := id.IAMAuth.GetConnectionString(ctx, net.LookupCNAME)
 	LOGGER.Info("CONNECTION STRING : ", connectionString)
 	if err != nil {
@@ -194,11 +210,11 @@ func WrapDB(db *sql.DB) (*sql.DB, error) {
 	db.SetMaxIdleConns(2)
 	db.SetMaxOpenConns(15)
 
-	err := db.Ping()
+	//err := db.Ping()
 
-	if err != nil {
-		return nil, xerrors.Errorf("Failed to ping DB: %w", err)
-	}
+	// if err != nil {
+	// 	return nil, xerrors.Errorf("Failed to ping DB: %w", err)
+	// }
 
 	LOGGER.Info("Successfully created database connection and instance. Returning the sqlx instance as wrapper for gorm.")
 	return db, nil

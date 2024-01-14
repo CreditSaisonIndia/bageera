@@ -54,3 +54,5 @@ __pycache__/
 
 # Ignore virtual environment
 venv/
+job/offer
+job/app

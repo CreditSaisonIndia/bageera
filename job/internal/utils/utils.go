@@ -27,8 +27,8 @@ func NewS3ServiceClient(sess *session.Session) *s3.S3 {
 }
 
 func GetBaseDir() string {
-	efsBasePath := serviceConfig.Get("efsBasePath")
-	objectKey := serviceConfig.Get("objectKey")
+	efsBasePath := serviceConfig.ApplicationSetting.EfsBasePath
+	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 	dirPath := filepath.Dir(objectKey)
 	// Extract the fileName without extension
 	fileName := filepath.Base(objectKey)
@@ -49,7 +49,7 @@ func GetLogsDir() string {
 }
 
 func GetFileName() (string, string) {
-	objectKey := serviceConfig.Get("objectKey")
+	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 	// Extract the fileName without extension
 	fileName := filepath.Base(objectKey)
 	fileNameWithoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]
