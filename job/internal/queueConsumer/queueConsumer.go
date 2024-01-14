@@ -121,7 +121,7 @@ func Consume() error {
 			// 	return err
 			// }
 			chunksDir := utils.GetChunksDir()
-			fileUtilityWrapper.DeleteDirIfExist(chunksDir)
+			err = fileUtilityWrapper.DeleteDirIfExist(chunksDir)
 			logFile, err := fileUtilityWrapper.AddLogFile()
 			path, err := fileUtilityWrapper.S3FileDownload()
 			if err != nil {
@@ -171,7 +171,7 @@ func Consume() error {
 				LifeTime:    "14m",
 				IdleTime:    "5m",
 				LogLevel:    "info", // Adjust the log level as needed
-				Region:      serviceConfig.ApplicationSetting.Region,
+				Region:      os.Getenv("region"),
 				IAMRoleAuth: true, // Set to true if you want to use IAM role authentication
 			}
 
@@ -298,13 +298,9 @@ func setConfigFromSqsMessage(jsonMessage string) {
 	// execution := s3UploadEvent.Execution
 	// serviceConfig.Set("execution", execution)
 
-	region := s3UploadEvent.Region
-	serviceConfig.ApplicationSetting.Region = region
-	serviceConfig.Set("region", region)
-
-	requestQueueUrl := s3UploadEvent.RequestQueueUrl
-	serviceConfig.ApplicationSetting.PqJobQueueUrl = requestQueueUrl
-	serviceConfig.Set("requestQueueUrl", requestQueueUrl)
+	// requestQueueUrl := s3UploadEvent.RequestQueueUrl
+	// serviceConfig.ApplicationSetting.PqJobQueueUrl = requestQueueUrl
+	// serviceConfig.Set("requestQueueUrl", requestQueueUrl)
 
 	//dbUsername := s3UploadEvent.DBUserName
 	serviceConfig.Set("dbUsername", serviceConfig.DatabaseSetting.User)

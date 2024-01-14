@@ -40,14 +40,18 @@ func SplitCsv() error {
 		LOGGER.Info("fileNameWithoutExt : ", fileNameWithoutExt)
 		LOGGER.Info("inputPath : ", inputPath)
 		LOGGER.Info("outputChunkDir : ", outputChunkDir)
-		fileUtilityWrapper.Copy(fileName, fileNameWithoutExt, inputPath, outputChunkDir)
+		err = fileUtilityWrapper.Copy(fileName, fileNameWithoutExt, inputPath, outputChunkDir)
+		if err != nil {
+			LOGGER.Error("Error While Copying  :", err)
+			return err
+		}
 	} else if err != nil {
-		LOGGER.Info("Error While Splitting :", err)
+		LOGGER.Error("Error While Splitting :", err)
 		return err
 	}
 	csvCount, err := countCSVFiles(outputChunkDir)
 	if err != nil {
-		LOGGER.Info("Error counting CSV files:", err)
+		LOGGER.Error("Error counting CSV files:", err)
 		return err
 	}
 

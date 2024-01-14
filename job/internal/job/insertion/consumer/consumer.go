@@ -21,7 +21,7 @@ import (
 	"github.com/lib/pq"
 )
 
-var maxConsumerGoroutines = 30
+var maxConsumerGoroutines = 15
 var ConsumerConcurrencyCh = make(chan struct{}, maxConsumerGoroutines)
 
 func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *sync.WaitGroup) {

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
@@ -27,6 +28,7 @@ func NewS3ServiceClient(sess *session.Session) *s3.S3 {
 }
 
 func GetBaseDir() string {
+	fmt.Printf("Fetching EFS base path value From Settings : %s\n", serviceConfig.ApplicationSetting.EfsBasePath)
 	efsBasePath := serviceConfig.ApplicationSetting.EfsBasePath
 	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 	dirPath := filepath.Dir(objectKey)

@@ -15,7 +15,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/model"
 )
 
-var maxProducerGoroutines = 30
+var maxProducerGoroutines = 15
 var ProducerConcurrencyCh = make(chan struct{}, maxProducerGoroutines)
 
 func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *sync.WaitGroup) {

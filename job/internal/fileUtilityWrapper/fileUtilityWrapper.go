@@ -26,17 +26,20 @@ func CreateReader(filePath string) (io.Reader, error) {
 	return file, nil
 }
 
-func DeleteDirIfExist(outputChunkDir string) {
+func DeleteDirIfExist(outputChunkDir string) error {
 	LOGGER := customLogger.GetLogger()
 	if _, err := os.Stat(outputChunkDir); os.IsNotExist(err) {
 		LOGGER.Info("Directory does not exist:", outputChunkDir)
+		return nil
 	} else {
 		// Directory exists, so delete it
 		err := os.RemoveAll(outputChunkDir)
 		if err != nil {
 			LOGGER.Info("Error deleting directory:", err)
+			return err
 		} else {
 			LOGGER.Info("Directory deleted successfully:", outputChunkDir)
+			return nil
 		}
 	}
 }
@@ -205,13 +208,14 @@ func AddLogFile() (*os.File, error) {
 	return logFile, nil
 }
 
-func Copy(fileName, fileNameWithoutExt, sourcePath, destinationPath string) {
+func Copy(fileName, fileNameWithoutExt, sourcePath, destinationPath string) error {
 
 	err := copyFile(sourcePath, filepath.Join(destinationPath, fileNameWithoutExt+"_1.csv"))
 	if err != nil {
-		LOGGER.Info("Error copying the file:", err)
-		return
+		LOGGER.Error("Error copying the file:", err)
+		return err
 	}
+	return nil
 
 }
 
