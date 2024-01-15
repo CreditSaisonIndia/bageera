@@ -1,6 +1,7 @@
 package fileUtilityWrapper
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -50,6 +51,12 @@ type progressWriter struct {
 	prefix string
 }
 
+func checkFileExists(filePath string) bool {
+	_, error := os.Stat(filePath)
+	//return !os.IsNotExist(err)
+	return !errors.Is(error, os.ErrNotExist)
+}
+
 func (pw *progressWriter) Write(p []byte) (n int, err error) {
 	n = len(p)
 	pw.length += int64(n)
@@ -63,6 +70,23 @@ func S3FileDownload() (string, error) {
 	//region := config.Get("region")
 	bucketName := serviceConfig.ApplicationSetting.BucketName
 	objectKey := serviceConfig.ApplicationSetting.ObjectKey
+
+	//Provide a local file path for saving the downloaded file
+	baseDir := utils.GetBaseDir()
+	LOGGER.Info("BASE FILE PATH : ", baseDir)
+	_, fileName := utils.GetFileName()
+	downloadPath := filepath.Join(baseDir, fileName)
+	absolutePath, err := filepath.Abs(downloadPath)
+
+	isFileExist := checkFileExists(absolutePath)
+
+	if isFileExist {
+		LOGGER.Info("File exist at path : ", absolutePath, "  | Hence skipping download")
+		return absolutePath, nil
+	}
+
+	localFile, err := os.Create(absolutePath)
+
 	// Specify the S3 endpoint for your region
 
 	s3Client, err := awsClient.GetS3Client()
@@ -89,13 +113,6 @@ func S3FileDownload() (string, error) {
 		}
 	}(downloadOutput)
 
-	//Provide a local file path for saving the downloaded file
-	baseDir := utils.GetBaseDir()
-	LOGGER.Info("BASE FILE PATH : ", baseDir)
-	_, fileName := utils.GetFileName()
-	downloadPath := filepath.Join(baseDir, fileName)
-	absolutePath, err := filepath.Abs(downloadPath)
-	localFile, err := os.Create(absolutePath)
 	// Get the absolute path
 
 	// Check for errors
