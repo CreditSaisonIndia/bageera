@@ -13,7 +13,8 @@ Resources:
         PerformanceMode: generalPurpose
         Encrypted: true
         LifecyclePolicies:
-          - TransitionToIA: AFTER_7_DAYS
+          - TransitionToIA: AFTER_30_DAYS
+          - TransitionToArchive: AFTER_90_DAYS
 
 
 Outputs:

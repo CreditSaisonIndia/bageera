@@ -19,6 +19,17 @@ Resources:
           Value: Tech
         - Key: Stage
           Value: LOS
+
+  DatabaseSecurityGroupIngress:
+    DependsOn : jobEcsSecurityGroup
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Rule for Ingress to Database Layer
+      FromPort: 5432
+      ToPort: 5432
+      GroupId: !ImportValue DatabaseSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !GetAtt jobEcsSecurityGroup.GroupId
   
   pursuerEcsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
