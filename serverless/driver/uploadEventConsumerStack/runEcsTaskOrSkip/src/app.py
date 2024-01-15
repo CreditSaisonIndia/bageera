@@ -35,7 +35,7 @@ def lambda_handler(event, context):
     task_definition = BAGEERA_JOB_DEFINITION_ARN
     cluster = BAGEERA_CLUSTER_ARN
     launch_type = 'FARGATE'  # or EC2 depending on your setup
-    subnet = SERVICE_SUBNETS
+    subnet = SERVICE_SUBNETS.split(",")
     security_group = BAGEERA_ECS_JOB_SG_ID
 
     # Additional parameters for your task
@@ -99,7 +99,7 @@ def lambda_handler(event, context):
             'cluster': cluster,
             'networkConfiguration': {
                 'awsvpcConfiguration': {
-                    'subnets': [subnet],
+                    'subnets': subnet,
                     'securityGroups': [security_group],
                 },
             },

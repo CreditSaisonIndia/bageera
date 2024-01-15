@@ -84,7 +84,7 @@ func SetUp(env string) {
 	// Add cases for other days as needed
 	default:
 
-		ApplicationSetting.EfsBasePath = os.Getenv("efsBathPath")
+		ApplicationSetting.EfsBasePath = os.Getenv("efsBasePath")
 		ApplicationSetting.Region = os.Getenv("region")
 		ApplicationSetting.PqJobQueueUrl = os.Getenv("requestQueueUrl")
 		ApplicationSetting.RunType = os.Getenv("environment")
@@ -102,6 +102,8 @@ func SetUp(env string) {
 		DatabaseSetting.TablePrefix = "scarlet"
 		DatabaseSetting.User = os.Getenv("dbUsername")
 		DatabaseSetting.Type = "postgres"
+
+		PrintSettings()
 
 	}
 

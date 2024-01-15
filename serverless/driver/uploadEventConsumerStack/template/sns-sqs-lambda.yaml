@@ -39,6 +39,12 @@ Parameters:
   ServiceSubnets:
     Description: Service Subnets
     Type: String
+  AlertSnsDisplayName:
+    Description: sns display name
+    Type: String
+  AlertSnsTopicName:
+    Description: sns topic name
+    Type: String
 
 
     
@@ -72,13 +78,20 @@ Resources:
           Value: !Select [ 3, !Ref ServiceTags ]
 
   alertSns:
-    Type: AWS::CloudFormation::Stack
+    Type: AWS::SNS::Topic
     Properties:
-      Parameters:
-        DisplayName: 'pq-job-status-sns'
-        TopicName: 'pq-job-status-sns-topic'
-        ServiceTags: !Join [ ',', [ bageera, Proton, Tech, LOS ] ]
-      TemplateURL: ./sns.yaml
+      DisplayName: !Ref AlertSnsDisplayName
+      TopicName: !Ref AlertSnsTopicName
+      Tags:
+        - Key: Service
+          Value: !Select [ 0, !Ref ServiceTags ]
+        - Key: Owner
+          Value: !Select [ 1, !Ref ServiceTags ]
+        - Key: Department
+          Value: !Select [ 2, !Ref ServiceTags ]
+        - Key: Stage
+          Value: !Select [ 3, !Ref ServiceTags ]
+
 
   RunEcsTaskOrSkipFunction:
     DependsOn: 
@@ -103,7 +116,7 @@ Resources:
           ENV: !Ref EnvironmentType
           BAGEERA_ECS_JOB_SG_ID: !Ref BageeraJobEcsSecurityGroupId
           SERVICE_SUBNETS: !Ref ServiceSubnets
-          ALERT_SNS: !ImportValue pq-job-status-sns-Arn
+          ALERT_SNS: !Ref alertSns
 
   Topic:
     DependsOn: pqJobQueue
@@ -196,3 +209,9 @@ Outputs:
     Value: !GetAtt RunEcsTaskOrSkipFunction.Arn
     Export:
       Name: bageeraRunEcsTaskOrSkip
+
+  AlertSnsArn:
+    Description: Arn of the alert sns topic
+    Value: !Ref alertSns
+    Export:
+      Name: !Sub ${AlertSnsDisplayName}-Arn

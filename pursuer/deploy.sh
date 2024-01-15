@@ -21,15 +21,17 @@ do
   case $opt in
     "dev"|"qa"|"uat"|"int")
       AWS_REGION=us-east-1
-      AWS_PROFILE=Development-Technology-Developer-971709774307
+      AWS_PROFILE=$opt
       break
       ;;
     "qa2")
       AWS_REGION=eu-west-1
+      AWS_PROFILE=$opt
       break
       ;;
     "production")
       AWS_REGION=ap-south-1
+      AWS_PROFILE=$opt
       break
       ;;
     *) echo "invalid option";;

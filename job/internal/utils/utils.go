@@ -2,34 +2,16 @@ package utils
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
 )
-
-// NewAWSSession creates a new AWS session.
-func NewAWSSession() (*session.Session, error) {
-	sess, err := session.NewSession(&aws.Config{
-		// Add any specific configurations if needed.
-	})
-	if err != nil {
-		return nil, err
-	}
-	return sess, nil
-}
-
-// NewS3ServiceClient creates a new S3 service client using the provided AWS session.
-func NewS3ServiceClient(sess *session.Session) *s3.S3 {
-	svc := s3.New(sess)
-	return svc
-}
 
 func GetBaseDir() string {
 	fmt.Printf("Fetching EFS base path value From Settings : %s\n", serviceConfig.ApplicationSetting.EfsBasePath)
-	efsBasePath := serviceConfig.ApplicationSetting.EfsBasePath
+	fmt.Printf("Fetching EFS base path value From env : %s\n", os.Getenv("efsBasePath"))
+	efsBasePath := os.Getenv("efsBasePath")
 	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 	dirPath := filepath.Dir(objectKey)
 	// Extract the fileName without extension

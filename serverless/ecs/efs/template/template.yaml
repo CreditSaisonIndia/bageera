@@ -11,6 +11,7 @@ Resources:
             - Key: Name
               Value: "pq-job-metadata"
         PerformanceMode: generalPurpose
+        ThroughputMode: elastic
         Encrypted: true
         LifecyclePolicies:
           - TransitionToIA: AFTER_30_DAYS

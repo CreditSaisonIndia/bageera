@@ -10,12 +10,13 @@ do
       AWS_REGION=us-east-1
       BUCKET_NAME="cfn-templates-v2-$opt"
       ENV=$opt
-      AWS_PROFILE=Development-Technology-Developer-971709774307
+      AWS_PROFILE=$opt
       break
       ;;
     "qa2")
       AWS_REGION=eu-west-1
       BUCKET_NAME=cfn-templates-qa2
+      AWS_PROFILE=$opt
       ENV=$opt
       break
       ;;
@@ -23,6 +24,7 @@ do
       AWS_REGION=ap-south-1
       BUCKET_NAME=cfn-oneaboveall-templates-production
       ENV=$opt
+      AWS_PROFILE=$opt
       break
       ;;
     *) echo "invalid option";;

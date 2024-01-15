@@ -34,6 +34,8 @@ Resources:
         BageeraClusterArn: !ImportValue bageeraEcsCluster-Arn
         BageeraJobDefinitionArn: !ImportValue bageera-job-definition-Arn
         BageeraJobEcsSecurityGroupId: !ImportValue bageeraJobEcsSecurityGroupId
+        AlertSnsDisplayName: 'pq-job-status-sns'
+        AlertSnsTopicName: 'pq-job-status-sns-topic'
         ServiceSubnets: !Join [',', !Split [',', !ImportValue ServiceSubnet]]
       TemplateURL: ./template/sns-sqs-lambda.yaml
 

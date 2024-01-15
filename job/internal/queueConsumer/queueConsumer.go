@@ -278,7 +278,8 @@ func setConfigFromSqsMessage(jsonMessage string) {
 	}
 
 	// Extracted values
-
+	serviceConfig.ApplicationSetting.EfsBasePath = os.Getenv("efsBathPath")
+	serviceConfig.ApplicationSetting.Region = os.Getenv("region")
 	fileName := s3UploadEvent.FileName
 	serviceConfig.ApplicationSetting.FileName = fileName
 	serviceConfig.Set("fileName", fileName)
