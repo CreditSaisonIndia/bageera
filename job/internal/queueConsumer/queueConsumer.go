@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
@@ -105,7 +106,12 @@ func Consume() error {
 		for _, msg := range result.Messages {
 			// Handle the message as needed
 			LOGGER.Info("Received message:", *msg.Body)
-			setConfigFromSqsMessage(*msg.Body)
+			err = setConfigFromSqsMessage(*msg.Body)
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				break
+			}
 			startTime := time.Now()
 
 			LOGGER.Info("*********BEGIN********")
@@ -122,7 +128,17 @@ func Consume() error {
 			// }
 			chunksDir := utils.GetChunksDir()
 			err = fileUtilityWrapper.DeleteDirIfExist(chunksDir)
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				break
+			}
 			logFile, err := fileUtilityWrapper.AddLogFile()
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				break
+			}
 			path, err := fileUtilityWrapper.S3FileDownload()
 			if err != nil {
 				serviceConfig.PrintSettings()
@@ -139,6 +155,8 @@ func Consume() error {
 				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
 				break
 			}
+
+			uploadInvalidFileToS3IfExist()
 
 			// Initialize the global CustomDBManager from the new package
 			// database.InitSqlxDb()
@@ -226,7 +244,22 @@ func Consume() error {
 	return nil
 }
 
-func setConfigFromSqsMessage(jsonMessage string) {
+func uploadInvalidFileToS3IfExist() {
+	LOGGER := customLogger.GetLogger()
+	LOGGER.Info("*******UPLOADING INVALID FILE*******")
+	invalidGoroutinesWaitGroup := sync.WaitGroup{}
+
+	invalidGoroutinesWaitGroup.Add(1)
+
+	go awsClient.S3MutiPartUpload()
+
+	go func() {
+		invalidGoroutinesWaitGroup.Wait()
+		LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+	}()
+}
+
+func setConfigFromSqsMessage(jsonMessage string) error {
 	LOGGER := customLogger.GetLogger()
 	//LOGGER.Info("GETTING SECRETS")
 	//
@@ -265,16 +298,16 @@ func setConfigFromSqsMessage(jsonMessage string) {
 	var snsNotification SNSNotification
 	err := json.Unmarshal([]byte(jsonMessage), &snsNotification)
 	if err != nil {
-		LOGGER.Info("Error decoding JSON:", err)
-		return
+		LOGGER.Error("Error decoding JSON:", err)
+		return err
 	}
 
 	// Unmarshal the inner S3UploadEvent
 	var s3UploadEvent S3UploadEvent
 	err = json.Unmarshal([]byte(snsNotification.Message), &s3UploadEvent)
 	if err != nil {
-		LOGGER.Info("Error decoding inner JSON:", err)
-		return
+		LOGGER.Error("Error decoding inner JSON:", err)
+		return err
 	}
 
 	// Extracted values
@@ -291,6 +324,9 @@ func setConfigFromSqsMessage(jsonMessage string) {
 	objectKey := s3UploadEvent.ObjectKey
 	serviceConfig.ApplicationSetting.ObjectKey = objectKey
 	serviceConfig.Set("objectKey", objectKey)
+
+	invalidObjectKey := utils.GetInvalidObjectKey()
+	serviceConfig.ApplicationSetting.InvalidObjectKey = invalidObjectKey
 
 	lpc := s3UploadEvent.LPC
 	serviceConfig.ApplicationSetting.Lpc = lpc
@@ -329,5 +365,7 @@ func setConfigFromSqsMessage(jsonMessage string) {
 	serviceConfig.Set("environment", environment)
 
 	LOGGER.Info("DATA FROM QUEUE MESSAGE PARSED SUCCESSFULLY ")
+
+	return nil
 
 }

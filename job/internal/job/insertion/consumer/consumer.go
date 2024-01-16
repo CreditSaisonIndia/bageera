@@ -193,9 +193,12 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 		}
 		LOGGER.Info("------------RELEASING CONNECTION--------------")
 		conn.Release()
+		time.Sleep(10 * time.Second)
+		LOGGER.Info("******** WORKER ", fileName, "  | WARMING UP TO WORK ON NEXT CHUNK ---> ", chunkNumber, " ********")
 	}
 
 	LOGGER.Info("Worker finished :", fileName, "------> Inserted ", chunkNumber, " times")
+
 	<-ConsumerConcurrencyCh
 }
 

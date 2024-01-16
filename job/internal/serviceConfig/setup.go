@@ -10,15 +10,16 @@ import (
 )
 
 type Application struct {
-	Region        string
-	RunType       string
-	PqJobQueueUrl string
-	EfsBasePath   string
-	AlertSnsArn   string
-	FileName      string
-	Lpc           string
-	BucketName    string
-	ObjectKey     string
+	Region           string
+	RunType          string
+	PqJobQueueUrl    string
+	EfsBasePath      string
+	AlertSnsArn      string
+	FileName         string
+	Lpc              string
+	BucketName       string
+	ObjectKey        string
+	InvalidObjectKey string
 }
 
 var ApplicationSetting = &Application{}

@@ -14,8 +14,6 @@ COPY . .
 # Copy the props directory
 COPY ./internal/serviceConfig/props /app/bageera/internal/serviceConfig/props
 
-
-RUN ls -l /app/bageera/internal/serviceConfig/props
 # Build the Go application
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /app/bageera/main ./cmd
 
@@ -24,6 +22,7 @@ FROM alpine:latest
 
 # Copy the binary from the builder stage
 COPY --from=builder /app/bageera/main /app/bageera/main
+COPY --from=builder /app/bageera/internal /app/bageera/internal
 COPY --from=builder /app/bageera/internal/serviceConfig/props /app/bageera/internal/serviceConfig/props
 
 
