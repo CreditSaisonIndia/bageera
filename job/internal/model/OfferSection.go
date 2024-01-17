@@ -2,7 +2,7 @@ package model
 
 type OfferSection struct {
 	ID                 string  `json:"id"`
-	Interest           float64 `json:"interest"`
+	Interest           string  `json:"interest"`
 	Tenure             int     `json:"tenure"`
 	ValidTill          string  `json:"validTill"`
 	PreApprovalDate    string  `json:"preApprovalDate"`
@@ -11,8 +11,8 @@ type OfferSection struct {
 	MinTenure          int     `json:"minTenure"`
 	ExpiryDateOfOffer  string  `json:"expiryDateOfOffer"`
 	CreditLimit        float64 `json:"creditLimit"`
-	RateOfInterest     float64 `json:"rateOfInterest"`
+	RateOfInterest     string  `json:"rateOfInterest"`
 	PF                 float64 `json:"pf"`
-	DedupeString       int     `json:"dedupeString"`
+	DedupeString       string  `json:"dedupeString"`
 	ApplicableSegments []int   `json:"applicableSegments"`
 }

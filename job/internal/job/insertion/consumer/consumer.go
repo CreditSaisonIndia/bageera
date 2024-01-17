@@ -262,7 +262,7 @@ func getSection(offers []model.OfferDetail) ([]byte, error) {
 				CreditLimit:        internalOffer.CreditLimit,
 				RateOfInterest:     internalOffer.ROI,
 				PF:                 internalOffer.PF,
-				DedupeString:       int(resp.DedupeString),
+				DedupeString:       resp.DedupeString,
 				ApplicableSegments: internalOffer.ApplicableSegments,
 			}
 			offerSectionArray = append(offerSectionArray, section)
