@@ -30,10 +30,10 @@ type OfferInfo struct {
 }
 
 type OfferDetail struct {
-	Offers            []OfferInfo `json:"offers" validate:"required"`
-	DateOfOffer       string      `json:"date_of_offer" validate:"required"`
-	ExpiryDateOfOffer string      `json:"expiry_date_of_offer" validate:"required"`
-	DedupeString      string      `json:"dedupe_string" validate:"required"`
+	Offers            []*OfferInfo `json:"offers" validate:"required,dive,required"`
+	DateOfOffer       string       `json:"date_of_offer" validate:"required"`
+	ExpiryDateOfOffer string       `json:"expiry_date_of_offer" validate:"required"`
+	DedupeString      string       `json:"dedupe_string" validate:"required"`
 }
 
 func isValidDate(fl validator.FieldLevel) bool {
