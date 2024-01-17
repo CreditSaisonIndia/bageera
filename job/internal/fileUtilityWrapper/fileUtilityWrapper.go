@@ -10,6 +10,7 @@ import (
 
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
+	"github.com/CreditSaisonIndia/bageera/internal/model"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/aws/aws-sdk-go/aws"
@@ -25,6 +26,21 @@ func CreateReader(filePath string) (io.Reader, error) {
 		return nil, err
 	}
 	return file, nil
+}
+
+func CreateDirIfDoesNotExist(dirPath string) error {
+	LOGGER := customLogger.GetLogger()
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		LOGGER.Info("Directory does not exist, so creating the directory:", dirPath)
+		if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
+			log.Println("Error creating directory:", err)
+			return err
+		}
+		return nil
+	} else {
+		LOGGER.Info("Directory exists:", dirPath)
+		return nil
+	}
 }
 
 func DeleteDirIfExist(outputChunkDir string) error {
@@ -103,7 +119,16 @@ func S3FileDownload() (string, error) {
 		Key:    aws.String(objectKey),
 	})
 	if err != nil {
-		LOGGER.Fatal("Error downloading file from S3:", err)
+		baseAlert := model.BaseAlert{
+			FileName: serviceConfig.ApplicationSetting.FileName,
+			Lpc:      serviceConfig.ApplicationSetting.Lpc,
+			Status:   "FAILED",
+			Message:  fmt.Sprintf("Failed while downloading the file | Bucket - %s | Object Key - %s", bucketName, objectKey),
+		}
+		awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+
+		LOGGER.Error("Error downloading file from S3:", err)
+		return "S3KeyError", err
 	}
 
 	defer func(file *s3.GetObjectOutput) {

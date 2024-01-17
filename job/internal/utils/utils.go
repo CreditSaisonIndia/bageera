@@ -35,6 +35,16 @@ func GetInvalidBaseDir() string {
 
 }
 
+func GetInvalidFileParentDir() string {
+	fmt.Printf("Fetching EFS base path value From Settings : %s\n", serviceConfig.ApplicationSetting.EfsBasePath)
+	fmt.Printf("Fetching EFS base path value From env : %s\n", os.Getenv("efsBasePath"))
+	efsBasePath := os.Getenv("efsBasePath")
+	objectKey := GetInvalidObjectKey()
+	dirPath := filepath.Dir(objectKey)
+	return filepath.Join(efsBasePath, dirPath)
+
+}
+
 func GetInvalidObjectKey() string {
 	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 

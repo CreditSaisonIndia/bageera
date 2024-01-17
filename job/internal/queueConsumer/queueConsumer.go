@@ -3,6 +3,7 @@ package queueConsumer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
+	"github.com/CreditSaisonIndia/bageera/internal/validation"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -112,6 +114,10 @@ func Consume() error {
 				LOGGER.Error(err)
 				break
 			}
+			deleteParams := &sqs.DeleteMessageInput{
+				QueueUrl:      aws.String(queueURL),
+				ReceiptHandle: msg.ReceiptHandle,
+			}
 			startTime := time.Now()
 
 			LOGGER.Info("*********BEGIN********")
@@ -143,10 +149,35 @@ func Consume() error {
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
+				if path == "S3KeyError" {
+					delteMessageFromSQS(deleteParams, sqsClient)
+				}
 				break
 			}
 
 			LOGGER.Info("downloaded file path:", path)
+
+			LOGGER.Info("Validating the csv file at path:", path)
+			anyValidRow, anyCustomError, err := validation.Validate(path)
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				if anyCustomError {
+					baseAlert := model.BaseAlert{
+						FileName: serviceConfig.ApplicationSetting.FileName,
+						Lpc:      serviceConfig.ApplicationSetting.Lpc,
+						Status:   "FAILED",
+						Message:  fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err),
+					}
+					awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+					delteMessageFromSQS(deleteParams, sqsClient)
+				}
+				break
+			}
+
+			if !anyValidRow {
+				LOGGER.Info(anyValidRow)
+			}
 
 			LOGGER.Info("Splitting...")
 			err = splitter.SplitCsv()
@@ -222,15 +253,7 @@ func Consume() error {
 			}(logFile)
 
 			// Delete the message from the queue after processing
-			deleteParams := &sqs.DeleteMessageInput{
-				QueueUrl:      aws.String(queueURL),
-				ReceiptHandle: msg.ReceiptHandle,
-			}
-			_, err = sqsClient.DeleteMessage(deleteParams)
-			if err != nil {
-				LOGGER.Error("Error deleting message:", err)
-				serviceConfig.PrintSettings()
-			}
+			delteMessageFromSQS(deleteParams, sqsClient)
 			baseAlert = model.BaseAlert{
 				FileName: serviceConfig.ApplicationSetting.FileName,
 				Lpc:      serviceConfig.ApplicationSetting.Lpc,
@@ -368,4 +391,13 @@ func setConfigFromSqsMessage(jsonMessage string) error {
 
 	return nil
 
+}
+
+func delteMessageFromSQS(deleteParams *sqs.DeleteMessageInput, sqsClient *sqs.SQS) {
+	LOGGER := customLogger.GetLogger()
+	_, err := sqsClient.DeleteMessage(deleteParams)
+	if err != nil {
+		LOGGER.Error("Error deleting message:", err)
+		serviceConfig.PrintSettings()
+	}
 }

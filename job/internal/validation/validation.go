@@ -1,0 +1,254 @@
+package validation
+
+import (
+	"encoding/csv"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
+	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
+	"github.com/CreditSaisonIndia/bageera/internal/utils"
+
+	"github.com/go-playground/validator/v10"
+)
+
+type OfferInfo struct {
+	ApplicableSegments []int   `json:"applicable_segments" validate:"required"`
+	PreferredTenure    int     `json:"preferred_tenure" validate:"required"`
+	MaxTenure          int     `json:"max_tenure" validate:"required"`
+	MinTenure          int     `json:"min_tenure" validate:"required"`
+	PF                 float64 `json:"pf" validate:"required"`
+	CreditLimit        float64 `json:"credit_limit" validate:"required"`
+	OfferID            string  `json:"offer_id" validate:"required"`
+	ROI                string  `json:"roi" validate:"required"`
+}
+
+type OfferDetail struct {
+	Offers            []OfferInfo `json:"offers" validate:"required"`
+	DateOfOffer       string      `json:"date_of_offer" validate:"required"`
+	ExpiryDateOfOffer string      `json:"expiry_date_of_offer" validate:"required"`
+	DedupeString      string      `json:"dedupe_string" validate:"required"`
+}
+
+func isValidDate(fl validator.FieldLevel) bool {
+	dateString := fl.Field().String()
+	// Define the expected date layout
+	layout := "2006-01-02"
+
+	// Parse the date string
+	_, err := time.Parse(layout, dateString)
+
+	// Check if there was an error during parsing
+	return err == nil
+}
+
+// Worker function to validate each row of the file
+func val_worker(id int, inputCh <-chan []string, validOutputCh chan<- []string, invalidOutputCh chan<- []string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for row := range inputCh {
+		// Your validation logic goes here
+		fmt.Print("Going to validate ")
+		isValid, remarks := validateRow(row)
+		fmt.Print("Validated")
+		// Send the row with the validation status to the output channel
+		if isValid {
+			validOutputCh <- row
+		} else {
+			row = append(row, remarks)
+			invalidOutputCh <- row
+		}
+
+	}
+}
+
+// Validation logic, replace this with your own validation criteria
+func validateRow(row []string) (isValid bool, remarks string) {
+	// Example: Validate that the first column is not empty
+	var remarks_list []string
+	if len(row) != 2 {
+		return false, "Invalid column length present"
+	}
+	if len(row[0]) == 0 {
+		return false, "Invalid partner Loan Id"
+	}
+	if len(row[1]) == 0 {
+		return false, "Invalid offer_details"
+	}
+
+	var offerDetails []OfferDetail
+	if errr := json.Unmarshal([]byte(row[1]), &offerDetails); errr != nil {
+		log.Println(errr)
+		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", errr))
+		return len(remarks_list) == 0, strings.Join(remarks_list, ";")
+	}
+
+	validate := validator.New()
+	validate.RegisterValidation("isValidDate", isValidDate)
+	err := validate.Struct(offerDetails[0])
+	if err != nil {
+		fmt.Println("Validation failed:")
+		for _, e := range err.(validator.ValidationErrors) {
+			remarks_list = append(remarks_list, fmt.Sprintf("Field: %s, Error: %s", e.Field(), e.Tag()))
+			fmt.Printf("Field: %s, Error: %s\n", e.Field(), e.Tag())
+		}
+	} else {
+		fmt.Println("Validation succeeded")
+	}
+
+	fmt.Printf("%s", strings.Join(remarks_list, ";"))
+	return len(remarks_list) == 0, strings.Join(remarks_list, ";")
+}
+
+func validateHeader(headers []string) error {
+	if len(headers) != 2 {
+		return errors.New("invalid headers length")
+	}
+	if headers[0] != "partner_loan_id" {
+		return fmt.Errorf("invalid header column - %s", headers[0])
+	}
+	if headers[1] != "offer_details" {
+		return fmt.Errorf("invalid header column - %s", headers[1])
+	}
+	return nil
+}
+
+func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error) {
+	LOGGER := customLogger.GetLogger()
+	anyValidRow = false
+
+	startTime := time.Now()
+	log.Println("**********Starting validation phase**********")
+	fileDirPath := utils.GetBaseDir()
+	validOutputFileName := fileDirPath + "_valid.csv"
+	invalidOutputFileParentDir := utils.GetInvalidFileParentDir()
+	invalidOutputFileName := utils.GetInvalidBaseDir() + ".csv"
+
+	LOGGER.Info("ValidOutputFilePath:", validOutputFileName)
+	LOGGER.Info("InvalidOutputFilePath:", invalidOutputFileName)
+
+	// Number of worker goroutines
+	numWorkers := 200
+
+	// Open input file
+	inputFile, err := os.Open(filePath)
+	if err != nil {
+		return false, false, err
+	}
+	defer inputFile.Close()
+
+	// Open valid output file
+	LOGGER.Info("Creating validOutputFile:", validOutputFileName)
+	validOutputFile, err := os.Create(validOutputFileName)
+	if err != nil {
+		LOGGER.Error("Error while Creating validOutputFile:", err)
+		return false, false, err
+	}
+	defer validOutputFile.Close()
+
+	// Open invalid output file
+	LOGGER.Info("Creating invalidOutputFileName:", invalidOutputFileName)
+	err = fileUtilityWrapper.CreateDirIfDoesNotExist(invalidOutputFileParentDir)
+	if err != nil {
+		return false, false, err
+	}
+	invalidOutputFile, err := os.Create(invalidOutputFileName)
+	if err != nil {
+		LOGGER.Error("Error while Creating invalidOutputFile:", err)
+		return false, false, err
+	}
+	defer invalidOutputFile.Close()
+
+	// Create CSV reader for input file
+	reader := csv.NewReader(inputFile)
+
+	// Create CSV writer for output file
+	validWriter := csv.NewWriter(validOutputFile)
+	defer validWriter.Flush()
+
+	invalidWriter := csv.NewWriter(invalidOutputFile)
+	defer invalidWriter.Flush()
+
+	// Read the header from the input file and write it to the invalid output file with the new "remarks" column
+	header, err := reader.Read()
+
+	err = validateHeader(header)
+	if err != nil {
+		LOGGER.Error("invalid headers:", err)
+		return false, true, err
+	}
+
+	err = validWriter.Write(header)
+	if err != nil {
+		return false, false, err
+	}
+	header = append(header, "remarks")
+	err = invalidWriter.Write(header)
+	if err != nil {
+		return false, false, err
+	}
+
+	// Create channels for communication between workers
+	inputCh := make(chan []string, 50000)
+	validOutputCh := make(chan []string, 50000)
+	invalidOutputCh := make(chan []string, 50000)
+
+	// Use WaitGroup to wait for all workers to finish
+	var wg sync.WaitGroup
+
+	// Start worker goroutines
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go val_worker(i, inputCh, validOutputCh, invalidOutputCh, &wg)
+	}
+
+	// Feed input rows to the workers through the input channel
+	go func() {
+		for {
+			row, err := reader.Read()
+			if err != nil {
+				close(inputCh)
+				break
+			}
+			inputCh <- row
+		}
+	}()
+
+	// Close the output channel when all workers finish
+	go func() {
+		wg.Wait()
+		close(validOutputCh)
+		close(invalidOutputCh)
+	}()
+
+	// Collect results from the output channel and write them to the output file
+	for row := range validOutputCh {
+		err := validWriter.Write(row)
+		if err != nil {
+			return false, false, err
+		}
+		if !anyValidRow {
+			anyValidRow = !anyValidRow
+		}
+	}
+
+	for row := range invalidOutputCh {
+		err := invalidWriter.Write(row)
+		if err != nil {
+			return false, false, err
+		}
+	}
+
+	fmt.Println("Validation completed. Results written to", invalidOutputFile, validOutputFile)
+
+	endTime := time.Now()
+	elapsedTime := endTime.Sub(startTime)
+	elapsedMinutes := elapsedTime.Minutes()
+	fmt.Printf("Time taken: %.2f minutes\n", elapsedMinutes)
+	return anyValidRow, false, nil
+}
