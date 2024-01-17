@@ -68,6 +68,7 @@ func val_worker(id int, inputCh <-chan []string, validOutputCh chan<- []string, 
 
 // Validation logic, replace this with your own validation criteria
 func validateRow(row []string) (isValid bool, remarks string) {
+	LOGGER := customLogger.GetLogger()
 	// Validate Number of fields in each row
 	var remarks_list []string
 	if len(row) != 2 {
@@ -85,9 +86,9 @@ func validateRow(row []string) (isValid bool, remarks string) {
 	}
 
 	var offerDetails []OfferDetail
-	if errr := json.Unmarshal([]byte(row[1]), &offerDetails); errr != nil {
-		log.Println(errr)
-		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", errr))
+	if err := json.Unmarshal([]byte(row[1]), &offerDetails); err != nil {
+		LOGGER.Error(err)
+		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
 		return len(remarks_list) == 0, strings.Join(remarks_list, ";")
 	}
 	if len(offerDetails) != 1 {
@@ -98,13 +99,13 @@ func validateRow(row []string) (isValid bool, remarks string) {
 	validate.RegisterValidation("isValidDate", isValidDate)
 	err := validate.Struct(offerDetails[0])
 	if err != nil {
-		fmt.Println("Validation failed:")
+		LOGGER.Info("Validation failed:")
 		for _, e := range err.(validator.ValidationErrors) {
 			remarks_list = append(remarks_list, fmt.Sprintf("Field: %s, Error: %s", e.Field(), e.Tag()))
 			fmt.Printf("Field: %s, Error: %s\n", e.Field(), e.Tag())
 		}
 	} else {
-		fmt.Println("Validation succeeded")
+		LOGGER.Info("Validation succeeded")
 	}
 
 	fmt.Printf("%s", strings.Join(remarks_list, ";"))
