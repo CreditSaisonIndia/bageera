@@ -58,7 +58,7 @@ func GetMetadataObjectKey() string {
 
 	parts1 := strings.Split(objectKey, "/")
 
-	parts1[0] = "metdata"
+	parts1[0] = "metadata"
 
 	// Join the parts back into a string
 	metadataObjectKey := strings.Join(parts1, "/")
