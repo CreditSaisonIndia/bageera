@@ -16,13 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-// var (
-// 	BucketName = serviceConfig.ApplicationSetting.BucketName
-// 	REGION     = serviceConfig.ApplicationSetting.BucketName
-// 	FILE       = "/200MB.zip"
-// 	PartSize   = 50_000_000
-// 	RETRIES    = 2
-// )
 
 const PartSize = 50_000_000
 const RETRIES = 2

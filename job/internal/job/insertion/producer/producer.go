@@ -96,7 +96,7 @@ func ReadOffers(r *csv.Reader) ([]model.Offer, error) {
 		// Parse the sanitized "offer_details" field as JSON
 		var offerDetails []model.OfferDetail
 		if err := json.Unmarshal([]byte(record[1]), &offerDetails); err != nil {
-			LOGGER.Info(err)
+			LOGGER.Error(err)
 			return nil, err
 		}
 		offer := model.Offer{

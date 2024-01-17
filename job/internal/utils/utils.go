@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -115,4 +116,9 @@ func GetFileNameFromPath(path string) (string, string) {
 	fileNameWithoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]
 	return fileNameWithoutExt, fileName
 
+}
+
+func PrettyPrint(i interface{}) string {
+	s, _ := json.MarshalIndent(i, "", "\t")
+	return string(s)
 }

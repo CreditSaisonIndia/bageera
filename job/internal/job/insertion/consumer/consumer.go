@@ -2,7 +2,6 @@ package consumer
 
 import (
 	"context"
-	"database/sql"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -217,7 +216,6 @@ func convertToInterfaceSlice(slice []interface{}) []interface{} {
 
 func convertToProddbOffer(offer model.Offer) (model.InitialOffer, error) {
 	LOGGER := customLogger.GetLogger()
-
 	var proddbInitialOffer model.InitialOffer
 	rawSection, err := getSection(offer.OfferDetails)
 	if err != nil {
@@ -228,9 +226,10 @@ func convertToProddbOffer(offer model.Offer) (model.InitialOffer, error) {
 		// Set other fields based on your requirements
 		IsActive:      true, // For example
 		IsDeleted:     false,
+		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
 		PartnerLoanID: offer.PartnerLoanID,
-		Status:        sql.NullInt64{Int64: 30},
+		Status:        30,
 		OfferSections: postgres.Jsonb{rawSection},
 
 		// ApplicableSegments: firstOffer.ApplicableSegments,
@@ -241,6 +240,7 @@ func convertToProddbOffer(offer model.Offer) (model.InitialOffer, error) {
 }
 
 func getSection(offers []model.OfferDetail) ([]byte, error) {
+
 	LOGGER := customLogger.GetLogger()
 	var offerSectionArray []model.OfferSection
 
@@ -248,6 +248,7 @@ func getSection(offers []model.OfferDetail) ([]byte, error) {
 		var internalOfferArray = resp.Offers
 
 		for _, internalOffer := range internalOfferArray {
+
 			section := model.OfferSection{
 				ID:                 internalOffer.OfferID,
 				Interest:           internalOffer.ROI,
@@ -261,7 +262,7 @@ func getSection(offers []model.OfferDetail) ([]byte, error) {
 				CreditLimit:        internalOffer.CreditLimit,
 				RateOfInterest:     internalOffer.ROI,
 				PF:                 internalOffer.PF,
-				DedupeString:       int(resp.DedupeString),
+				DedupeString:       resp.DedupeString,
 				ApplicableSegments: internalOffer.ApplicableSegments,
 			}
 			offerSectionArray = append(offerSectionArray, section)
