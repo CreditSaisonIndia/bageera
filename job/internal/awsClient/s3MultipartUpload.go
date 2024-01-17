@@ -3,6 +3,7 @@ package awsClient
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
@@ -42,9 +43,10 @@ func S3MutiPartUpload() {
 	Init()
 	//source efsBasePth+objectKey
 	invalidBaseDir := utils.GetInvalidBaseDir()
+	fileNameWithoutExt, _ := utils.GetFileName()
 	// _, fileName := utils.GetFileNameFromPath(serviceConfig.ApplicationSetting.ObjectKey)
 
-	file, err := os.Open(invalidBaseDir + ".csv")
+	file, err := os.Open(filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
 	if err != nil {
 		LOGGER.Error("Error while os.Open: ", err)
 		return

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -53,9 +54,9 @@ func val_worker(id int, inputCh <-chan []string, validOutputCh chan<- []string, 
 	defer wg.Done()
 	for row := range inputCh {
 		// Your validation logic goes here
-		fmt.Print("Going to validate ")
+		fmt.Printf("Starting validation on worker - %d\n", id)
 		isValid, remarks := validateRow(row)
-		fmt.Print("Validated")
+		fmt.Printf("Validated on worker - %d\n", id)
 		// Send the row with the validation status to the output channel
 		if isValid {
 			validOutputCh <- row
@@ -69,16 +70,20 @@ func val_worker(id int, inputCh <-chan []string, validOutputCh chan<- []string, 
 
 // Validation logic, replace this with your own validation criteria
 func validateRow(row []string) (isValid bool, remarks string) {
-	// Example: Validate that the first column is not empty
+	// Validate Number of fields in each row
 	var remarks_list []string
 	if len(row) != 2 {
-		return false, "Invalid column length present"
+		return false, "Invalid number of fields present in the row"
 	}
+	// Validate the two fields to be not empty
 	if len(row[0]) == 0 {
-		return false, "Invalid partner Loan Id"
+		remarks_list = append(remarks_list, "partner_loan_id cannot be empty")
 	}
 	if len(row[1]) == 0 {
-		return false, "Invalid offer_details"
+		remarks_list = append(remarks_list, "offer_details cannot be empty")
+	}
+	if len(remarks_list) != 0 {
+		return false, strings.Join(remarks_list, ";")
 	}
 
 	var offerDetails []OfferDetail
@@ -86,6 +91,9 @@ func validateRow(row []string) (isValid bool, remarks string) {
 		log.Println(errr)
 		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", errr))
 		return len(remarks_list) == 0, strings.Join(remarks_list, ";")
+	}
+	if len(offerDetails) != 1 {
+		return false, "Invalid Number of elements at the root list"
 	}
 
 	validate := validator.New()
@@ -124,10 +132,11 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 
 	startTime := time.Now()
 	log.Println("**********Starting validation phase**********")
-	fileDirPath := utils.GetBaseDir()
-	validOutputFileName := fileDirPath + "_valid.csv"
-	invalidOutputFileParentDir := utils.GetInvalidFileParentDir()
-	invalidOutputFileName := utils.GetInvalidBaseDir() + ".csv"
+
+	fileNameWithoutExt, _ := utils.GetFileName()
+	validOutputFileName := filepath.Join(utils.GetMetadataBaseDir(), fileNameWithoutExt+"_valid.csv")
+	invalidOutputFileDir := utils.GetInvalidBaseDir()
+	invalidOutputFileName := filepath.Join(invalidOutputFileDir, fileNameWithoutExt+"_invalid.csv")
 
 	LOGGER.Info("ValidOutputFilePath:", validOutputFileName)
 	LOGGER.Info("InvalidOutputFilePath:", invalidOutputFileName)
@@ -153,7 +162,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 
 	// Open invalid output file
 	LOGGER.Info("Creating invalidOutputFileName:", invalidOutputFileName)
-	err = fileUtilityWrapper.CreateDirIfDoesNotExist(invalidOutputFileParentDir)
+	err = fileUtilityWrapper.CreateDirIfDoesNotExist(invalidOutputFileDir)
 	if err != nil {
 		return false, false, err
 	}
@@ -176,6 +185,10 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 
 	// Read the header from the input file and write it to the invalid output file with the new "remarks" column
 	header, err := reader.Read()
+	if err != nil {
+		LOGGER.Error("invalid headers:", err)
+		return false, true, err
+	}
 
 	err = validateHeader(header)
 	if err != nil {

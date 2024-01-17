@@ -99,6 +99,12 @@ func S3FileDownload() (string, error) {
 	if isFileExist {
 		LOGGER.Info("File exist at path : ", absolutePath, "  | Hence skipping download")
 		return absolutePath, nil
+	} else {
+		err := os.MkdirAll(baseDir, os.ModePerm)
+		if err != nil {
+			serviceConfig.PrintSettings()
+			return "", err
+		}
 	}
 
 	localFile, err := os.Create(absolutePath)
@@ -128,7 +134,8 @@ func S3FileDownload() (string, error) {
 		awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
 
 		LOGGER.Error("Error downloading file from S3:", err)
-		return "S3KeyError", err
+		// return "", fmt.Errorf("S3KeyError")
+		return "", errors.New("S3KeyError")
 	}
 
 	defer func(file *s3.GetObjectOutput) {

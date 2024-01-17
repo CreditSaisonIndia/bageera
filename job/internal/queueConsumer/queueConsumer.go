@@ -139,6 +139,12 @@ func Consume() error {
 				LOGGER.Error(err)
 				break
 			}
+			err := os.MkdirAll(chunksDir, os.ModePerm)
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				break
+			}
 			logFile, err := fileUtilityWrapper.AddLogFile()
 			if err != nil {
 				serviceConfig.PrintSettings()
@@ -149,7 +155,7 @@ func Consume() error {
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
-				if path == "S3KeyError" {
+				if err.Error() == "S3KeyError" {
 					delteMessageFromSQS(deleteParams, sqsClient)
 				}
 				break
@@ -176,8 +182,11 @@ func Consume() error {
 			}
 
 			if !anyValidRow {
-				LOGGER.Info(anyValidRow)
+				LOGGER.Info("No valid rows present after validation", anyValidRow)
+				break
 			}
+
+			uploadInvalidFileToS3IfExist()
 
 			LOGGER.Info("Splitting...")
 			err = splitter.SplitCsv()
@@ -186,8 +195,6 @@ func Consume() error {
 				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
 				break
 			}
-
-			uploadInvalidFileToS3IfExist()
 
 			// Initialize the global CustomDBManager from the new package
 			// database.InitSqlxDb()
