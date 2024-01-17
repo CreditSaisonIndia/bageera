@@ -16,7 +16,7 @@ type InitialOffer struct {
 	UpdatedAt     time.Time       `json:"updated_at"`
 	AppFormID     sql.NullString  `json:"app_form_id"`
 	PartnerLoanID string          `json:"partner_loan_id"`
-	Status        sql.NullInt64   `json:"status"`
+	Status        int             `json:"status"`
 	OfferSections postgres.Jsonb  `gorm:"type:jsonb" json:"offer_sections"`
 	OfferRequest  json.RawMessage `gorm:"type:jsonb" json:"offer_request"`
 	Description   sql.NullString  `json:"description"`

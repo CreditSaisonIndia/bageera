@@ -27,7 +27,7 @@ func SplitCsv() error {
 
 	splitter := splitCsv.New()
 	splitter.Separator = ";"          // "," is by default
-	splitter.FileChunkSize = 50000000 //in bytes (200MB)
+	splitter.FileChunkSize = 20000000 //in bytes (200MB)
 	baseDir := utils.GetBaseDir()
 	fileNameWithoutExt, fileName := utils.GetFileName()
 	inputPath := filepath.Join(baseDir, fileName)
