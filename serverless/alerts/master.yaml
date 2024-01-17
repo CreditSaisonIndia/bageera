@@ -31,4 +31,4 @@ Resources:
           parameterName: PQ-WHITELISTING-ALERTS-SLACK-WEBHOOK-URL
       Parameters:
         AlertsSlackWebhookUrl: '$$PQ-WHITELISTING-ALERTS-SLACK-WEBHOOK-URL$$'
-      TemplateURL: slack_notification/template.yaml
+      TemplateURL: slackNotification/package.yaml
