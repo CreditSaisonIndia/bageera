@@ -226,6 +226,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 		for {
 			row, err := reader.Read()
 			if err != nil {
+				LOGGER.Error(err)
 				close(inputCh)
 				break
 			}

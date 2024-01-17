@@ -168,24 +168,29 @@ func Consume() error {
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
-				// if anyCustomError {
 				if anyCustomError {
-					LOGGER.Info("Got a cusotm error")
+					baseAlert := model.BaseAlert{
+						FileName: serviceConfig.ApplicationSetting.FileName,
+						Lpc:      serviceConfig.ApplicationSetting.Lpc,
+						Status:   "FAILED",
+						Message:  fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err),
+					}
+					awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+					delteMessageFromSQS(deleteParams, sqsClient)
 				}
-				baseAlert := model.BaseAlert{
-					FileName: serviceConfig.ApplicationSetting.FileName,
-					Lpc:      serviceConfig.ApplicationSetting.Lpc,
-					Status:   "FAILED",
-					Message:  fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err),
-				}
-				awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
-				delteMessageFromSQS(deleteParams, sqsClient)
-				// }
 				break
 			}
 
 			if !anyValidRow {
-				LOGGER.Info("No valid rows present after validation", anyValidRow)
+				LOGGER.Error("No valid rows present after validation", anyValidRow)
+				baseAlert := model.BaseAlert{
+					FileName: serviceConfig.ApplicationSetting.FileName,
+					Lpc:      serviceConfig.ApplicationSetting.Lpc,
+					Status:   "FAILED",
+					Message:  "No valid rows present after validation",
+				}
+				awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+				delteMessageFromSQS(deleteParams, sqsClient)
 				break
 			}
 
