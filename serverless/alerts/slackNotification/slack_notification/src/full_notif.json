@@ -1,0 +1,80 @@
+{
+    "attachments": [
+        {
+            "fallback": "PQ Whitelisting Alerts",
+            "color": "#D00000",
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "text": "*:alert:PQ Whitelist Alert*",
+                        "type": "mrkdwn"
+                    },
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "*LPC*"
+                        },
+                        {
+                            "type": "plain_text",
+                            "text": ""
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*File Name*"
+                        },
+                        {
+                            "type": "plain_text",
+                            "text": ""
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Status*"
+                        },
+                        {
+                            "type": "plain_text",
+                            "text": ""
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Message*"
+                        },
+                        {
+                            "type": "plain_text",
+                            "text": ""
+                        }
+                    ]
+                },
+                {
+                    "type": "section",
+                    "fields": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Chunked File Name*"
+                        },
+                        {
+                            "type": "plain_text",
+                            "text": ""
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*S3 URL*"
+                        },
+                        {
+                            "type": "plain_text",
+                            "text": ""
+                        },
+                        {
+                            "type": "mrkdwn",
+                            "text": "*Action to*"
+                        },
+                        {
+                            "type": "plain_text",
+                            "text": ""
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+  }
