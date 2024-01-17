@@ -54,9 +54,7 @@ func val_worker(id int, inputCh <-chan []string, validOutputCh chan<- []string, 
 	defer wg.Done()
 	for row := range inputCh {
 		// Your validation logic goes here
-		fmt.Printf("Starting validation on worker - %d\n", id)
 		isValid, remarks := validateRow(row)
-		fmt.Printf("Validated on worker - %d\n", id)
 		// Send the row with the validation status to the output channel
 		if isValid {
 			validOutputCh <- row
@@ -205,6 +203,8 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	if err != nil {
 		return false, false, err
 	}
+
+	log.Println("**********Headers are written**********")
 
 	// Create channels for communication between workers
 	inputCh := make(chan []string, 50000)
