@@ -121,12 +121,7 @@ func Consume() error {
 			startTime := time.Now()
 
 			LOGGER.Info("*********BEGIN********")
-			baseAlert := model.BaseAlert{
-				FileName: serviceConfig.ApplicationSetting.FileName,
-				Lpc:      serviceConfig.ApplicationSetting.Lpc,
-				Status:   "IN_PROGRESS",
-			}
-			awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+			sendAlertMessage("IN_PROGRESS", "")
 			//logFile, err := fileUtilityWrapper.AddLogFileSugar()
 			// if err != nil {
 			// 	LOGGER.Info("Error while creating log file : ", err)
@@ -156,6 +151,7 @@ func Consume() error {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
 				if err.Error() == "S3KeyError" {
+					// Alert sent in the internal function already
 					delteMessageFromSQS(deleteParams, sqsClient)
 				}
 				break
@@ -163,34 +159,25 @@ func Consume() error {
 
 			LOGGER.Info("downloaded file path:", path)
 
+			err = delteMessageFromSQS(deleteParams, sqsClient)
+			if err != nil {
+				LOGGER.Error("Error while deleting the message from queue", err)
+				sendAlertMessage("ERROR", fmt.Sprintf("Error while deleting the message from queue - %s", err))
+				break
+			}
+
 			LOGGER.Info("Validating the csv file at path:", path)
 			anyValidRow, anyCustomError, err := validation.Validate(path)
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
-				if anyCustomError {
-					baseAlert := model.BaseAlert{
-						FileName: serviceConfig.ApplicationSetting.FileName,
-						Lpc:      serviceConfig.ApplicationSetting.Lpc,
-						Status:   "FAILED",
-						Message:  fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err),
-					}
-					awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
-					delteMessageFromSQS(deleteParams, sqsClient)
-				}
+				sendAlertMessage("FAILED", fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err))
 				break
 			}
 
 			if !anyValidRow {
 				LOGGER.Error("No valid rows present after validation", anyValidRow)
-				baseAlert := model.BaseAlert{
-					FileName: serviceConfig.ApplicationSetting.FileName,
-					Lpc:      serviceConfig.ApplicationSetting.Lpc,
-					Status:   "FAILED",
-					Message:  "No valid rows present after validation",
-				}
-				awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
-				delteMessageFromSQS(deleteParams, sqsClient)
+				sendAlertMessage("FAILED", "No Valid rows present after validation")
 				break
 			}
 
@@ -201,6 +188,7 @@ func Consume() error {
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
+				sendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE SPLITTING CSV - %s", err))
 				break
 			}
 
@@ -242,8 +230,9 @@ func Consume() error {
 			// Get a database connection pool
 			pool, err := p.GetDBPool(context.Background(), cfg, sess)
 			if err != nil {
-				LOGGER.Error("ERRON WHILE INITIALIZING DB POOL : ", err)
+				LOGGER.Error("ERROR WHILE INITIALIZING DB POOL : ", err)
 				serviceConfig.PrintSettings()
+				sendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE INITIALIZING DB POOL - %s", err))
 				break
 			}
 
@@ -267,9 +256,7 @@ func Consume() error {
 				}
 			}(logFile)
 
-			// Delete the message from the queue after processing
-			delteMessageFromSQS(deleteParams, sqsClient)
-			baseAlert = model.BaseAlert{
+			baseAlert := model.BaseAlert{
 				FileName: serviceConfig.ApplicationSetting.FileName,
 				Lpc:      serviceConfig.ApplicationSetting.Lpc,
 				Status:   "SUCCESS",
@@ -408,11 +395,23 @@ func setConfigFromSqsMessage(jsonMessage string) error {
 
 }
 
-func delteMessageFromSQS(deleteParams *sqs.DeleteMessageInput, sqsClient *sqs.SQS) {
+func delteMessageFromSQS(deleteParams *sqs.DeleteMessageInput, sqsClient *sqs.SQS) error {
 	LOGGER := customLogger.GetLogger()
 	_, err := sqsClient.DeleteMessage(deleteParams)
 	if err != nil {
 		LOGGER.Error("Error deleting message:", err)
 		serviceConfig.PrintSettings()
+		return err
 	}
+	return nil
+}
+
+func sendAlertMessage(status string, message string) {
+	baseAlert := model.BaseAlert{
+		FileName: serviceConfig.ApplicationSetting.FileName,
+		Lpc:      serviceConfig.ApplicationSetting.Lpc,
+		Status:   status,
+		Message:  message,
+	}
+	awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
 }

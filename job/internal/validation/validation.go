@@ -117,7 +117,7 @@ func validateHeader(headers []string) error {
 	return nil
 }
 
-func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error) {
+func Validate(filePath string) (anyValidRow bool, err error) {
 	LOGGER := customLogger.GetLogger()
 	anyValidRow = false
 
@@ -138,7 +138,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	// Open input file
 	inputFile, err := os.Open(filePath)
 	if err != nil {
-		return false, false, err
+		return false, err
 	}
 	defer inputFile.Close()
 
@@ -147,7 +147,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	validOutputFile, err := os.Create(validOutputFileName)
 	if err != nil {
 		LOGGER.Error("Error while Creating validOutputFile:", err)
-		return false, false, err
+		return false, err
 	}
 	defer validOutputFile.Close()
 
@@ -155,7 +155,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	LOGGER.Debug("Creating invalidOutputFileName:", invalidOutputFileName)
 	err = fileUtilityWrapper.CreateDirIfDoesNotExist(invalidOutputFileDir)
 	if err != nil {
-		return false, false, err
+		return false, err
 	}
 	invalidOutputFile, err := os.Create(invalidOutputFileName)
 	if err != nil {
@@ -178,23 +178,23 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	header, err := reader.Read()
 	if err != nil {
 		LOGGER.Error("invalid headers:", err)
-		return false, true, err
+		return false, err
 	}
 
 	err = validateHeader(header)
 	if err != nil {
 		LOGGER.Error("invalid headers:", err)
-		return false, true, err
+		return false, err
 	}
 
 	err = validWriter.Write(header)
 	if err != nil {
-		return false, false, err
+		return false, err
 	}
 	header = append(header, "remarks")
 	err = invalidWriter.Write(header)
 	if err != nil {
-		return false, false, err
+		return false, err
 	}
 
 	LOGGER.Debug("**********Headers are written**********")
@@ -238,7 +238,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 		err := validWriter.Write(row)
 		if err != nil {
 			LOGGER.Error(err)
-			return false, false, err
+			return false, err
 		}
 		if !anyValidRow {
 			anyValidRow = !anyValidRow
@@ -249,7 +249,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 		err := invalidWriter.Write(row)
 		if err != nil {
 			LOGGER.Error(err)
-			return false, false, err
+			return false, err
 		}
 	}
 
@@ -259,5 +259,5 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	elapsedTime := endTime.Sub(startTime)
 	elapsedMinutes := elapsedTime.Minutes()
 	LOGGER.Info("Time taken: %.2f minutes\n", elapsedMinutes)
-	return anyValidRow, false, nil
+	return anyValidRow, nil
 }
