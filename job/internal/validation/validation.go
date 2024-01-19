@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,7 +67,6 @@ func val_worker(id int, inputCh <-chan []string, validOutputCh chan<- []string, 
 
 // Validation logic, replace this with your own validation criteria
 func validateRow(row []string) (isValid bool, remarks string) {
-	LOGGER := customLogger.GetLogger()
 	// Validate Number of fields in each row
 	var remarks_list []string
 	if len(row) != 2 {
@@ -87,7 +85,6 @@ func validateRow(row []string) (isValid bool, remarks string) {
 
 	var offerDetails []OfferDetail
 	if err := json.Unmarshal([]byte(row[1]), &offerDetails); err != nil {
-		LOGGER.Error(err)
 		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
 		return len(remarks_list) == 0, strings.Join(remarks_list, ";")
 	}
@@ -99,16 +96,11 @@ func validateRow(row []string) (isValid bool, remarks string) {
 	validate.RegisterValidation("isValidDate", isValidDate)
 	err := validate.Struct(offerDetails[0])
 	if err != nil {
-		LOGGER.Info("Validation failed:")
 		for _, e := range err.(validator.ValidationErrors) {
 			remarks_list = append(remarks_list, fmt.Sprintf("Field: %s, Error: %s", e.Field(), e.Tag()))
-			fmt.Printf("Field: %s, Error: %s\n", e.Field(), e.Tag())
 		}
-	} else {
-		LOGGER.Info("Validation succeeded")
 	}
 
-	fmt.Printf("%s", strings.Join(remarks_list, ";"))
 	return len(remarks_list) == 0, strings.Join(remarks_list, ";")
 }
 
@@ -130,15 +122,15 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	anyValidRow = false
 
 	startTime := time.Now()
-	log.Println("**********Starting validation phase**********")
+	LOGGER.Info("**********Starting validation phase**********")
 
 	fileNameWithoutExt, _ := utils.GetFileName()
 	validOutputFileName := filepath.Join(utils.GetMetadataBaseDir(), fileNameWithoutExt+"_valid.csv")
 	invalidOutputFileDir := utils.GetInvalidBaseDir()
 	invalidOutputFileName := filepath.Join(invalidOutputFileDir, fileNameWithoutExt+"_invalid.csv")
 
-	LOGGER.Info("ValidOutputFilePath:", validOutputFileName)
-	LOGGER.Info("InvalidOutputFilePath:", invalidOutputFileName)
+	LOGGER.Debug("ValidOutputFilePath:", validOutputFileName)
+	LOGGER.Debug("InvalidOutputFilePath:", invalidOutputFileName)
 
 	// Number of worker goroutines
 	numWorkers := 200
@@ -151,7 +143,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	defer inputFile.Close()
 
 	// Open valid output file
-	LOGGER.Info("Creating validOutputFile:", validOutputFileName)
+	LOGGER.Debug("Creating validOutputFile:", validOutputFileName)
 	validOutputFile, err := os.Create(validOutputFileName)
 	if err != nil {
 		LOGGER.Error("Error while Creating validOutputFile:", err)
@@ -160,7 +152,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	defer validOutputFile.Close()
 
 	// Open invalid output file
-	LOGGER.Info("Creating invalidOutputFileName:", invalidOutputFileName)
+	LOGGER.Debug("Creating invalidOutputFileName:", invalidOutputFileName)
 	err = fileUtilityWrapper.CreateDirIfDoesNotExist(invalidOutputFileDir)
 	if err != nil {
 		return false, false, err
@@ -205,7 +197,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 		return false, false, err
 	}
 
-	log.Println("**********Headers are written**********")
+	LOGGER.Debug("**********Headers are written**********")
 
 	// Create channels for communication between workers
 	inputCh := make(chan []string, 50000)
@@ -245,6 +237,7 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	for row := range validOutputCh {
 		err := validWriter.Write(row)
 		if err != nil {
+			LOGGER.Error(err)
 			return false, false, err
 		}
 		if !anyValidRow {
@@ -255,15 +248,16 @@ func Validate(filePath string) (anyValidRow bool, anyCustomError bool, err error
 	for row := range invalidOutputCh {
 		err := invalidWriter.Write(row)
 		if err != nil {
+			LOGGER.Error(err)
 			return false, false, err
 		}
 	}
 
-	fmt.Println("Validation completed. Results written to", invalidOutputFile, validOutputFile)
+	LOGGER.Info("Validation completed. Results written to", invalidOutputFile, validOutputFile)
 
 	endTime := time.Now()
 	elapsedTime := endTime.Sub(startTime)
 	elapsedMinutes := elapsedTime.Minutes()
-	fmt.Printf("Time taken: %.2f minutes\n", elapsedMinutes)
+	LOGGER.Info("Time taken: %.2f minutes\n", elapsedMinutes)
 	return anyValidRow, false, nil
 }
