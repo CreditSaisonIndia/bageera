@@ -3,7 +3,6 @@ package validation
 import (
 	"encoding/csv"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
@@ -106,7 +106,7 @@ func validateRow(row []string) (isValid bool, remarks string) {
 
 func validateHeader(headers []string) error {
 	if len(headers) != 2 {
-		return errors.New("invalid headers length")
+		return fmt.Errorf("invalid headers length")
 	}
 	if headers[0] != "partner_loan_id" {
 		return fmt.Errorf("invalid header column - %s", headers[0])
@@ -117,9 +117,10 @@ func validateHeader(headers []string) error {
 	return nil
 }
 
-func Validate(filePath string) (anyValidRow bool, err error) {
+func Validate(filePath string) (bool, error) {
 	LOGGER := customLogger.GetLogger()
-	anyValidRow = false
+	anyValidRow := false
+	anyInvalidRow := false
 
 	startTime := time.Now()
 	LOGGER.Info("**********Starting validation phase**********")
@@ -138,6 +139,7 @@ func Validate(filePath string) (anyValidRow bool, err error) {
 	// Open input file
 	inputFile, err := os.Open(filePath)
 	if err != nil {
+		LOGGER.Error("Error while opening inputFile:", err)
 		return false, err
 	}
 	defer inputFile.Close()
@@ -155,6 +157,7 @@ func Validate(filePath string) (anyValidRow bool, err error) {
 	LOGGER.Debug("Creating invalidOutputFileName:", invalidOutputFileName)
 	err = fileUtilityWrapper.CreateDirIfDoesNotExist(invalidOutputFileDir)
 	if err != nil {
+		LOGGER.Debug("Error while creating invalidOutputFileDir:", err)
 		return false, err
 	}
 	invalidOutputFile, err := os.Create(invalidOutputFileName)
@@ -177,7 +180,7 @@ func Validate(filePath string) (anyValidRow bool, err error) {
 	// Read the header from the input file and write it to the invalid output file with the new "remarks" column
 	header, err := reader.Read()
 	if err != nil {
-		LOGGER.Error("invalid headers:", err)
+		LOGGER.Error("Unable to readb the CSV File:", err)
 		return false, err
 	}
 
@@ -221,6 +224,7 @@ func Validate(filePath string) (anyValidRow bool, err error) {
 			row, err := reader.Read()
 			if err != nil {
 				LOGGER.Error(err)
+				awsClient.SendAlertMessage("ERROR", "Reader closed abruptly, check valid - invalid count")
 				close(inputCh)
 				break
 			}
@@ -253,6 +257,9 @@ func Validate(filePath string) (anyValidRow bool, err error) {
 			LOGGER.Error(err)
 			return false, err
 		}
+		if !anyInvalidRow {
+			anyValidRow = !anyInvalidRow
+		}
 	}
 
 	LOGGER.Info("Validation completed. Results written to", invalidOutputFile, validOutputFile)
@@ -261,5 +268,12 @@ func Validate(filePath string) (anyValidRow bool, err error) {
 	elapsedTime := endTime.Sub(startTime)
 	elapsedMinutes := elapsedTime.Minutes()
 	LOGGER.Info("Time taken: %.2f minutes\n", elapsedMinutes)
-	return anyValidRow, nil
+
+	if !anyValidRow {
+		awsClient.SendAlertMessage("FAILED", "No valid rows found")
+	} else if anyInvalidRow {
+		awsClient.SendAlertMessage("FAILED", "Invalid rows found")
+	}
+
+	return !anyValidRow, nil
 }

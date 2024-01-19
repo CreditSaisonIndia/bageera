@@ -10,7 +10,6 @@ import (
 
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
-	"github.com/CreditSaisonIndia/bageera/internal/model"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/aws/aws-sdk-go/aws"
@@ -125,13 +124,7 @@ func S3FileDownload() (string, error) {
 		Key:    aws.String(objectKey),
 	})
 	if err != nil {
-		baseAlert := model.BaseAlert{
-			FileName: serviceConfig.ApplicationSetting.FileName,
-			Lpc:      serviceConfig.ApplicationSetting.Lpc,
-			Status:   "FAILED",
-			Message:  fmt.Sprintf("Failed while downloading the file | Bucket - %s | Object Key - %s", bucketName, objectKey),
-		}
-		awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+		awsClient.SendAlertMessage("FAILED", fmt.Sprintf("Failed while downloading the file | Bucket - %s | Object Key - %s", bucketName, objectKey))
 
 		LOGGER.Error("Error downloading file from S3:", err)
 		// return "", fmt.Errorf("S3KeyError")
