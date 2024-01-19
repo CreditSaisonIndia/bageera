@@ -174,14 +174,18 @@ func Consume() error {
 				sendAlertMessage("FAILED", fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err))
 				break
 			}
+			invalidGoroutinesWaitGroup := sync.WaitGroup{}
+
+			uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup)
 
 			if !anyValidRow {
 				LOGGER.Error("No valid rows present after validation", anyValidRow)
 				sendAlertMessage("FAILED", "No Valid rows present after validation")
+				LOGGER.Info("Starting initializeWait")
+				initializeWait(&invalidGoroutinesWaitGroup)
+				LOGGER.Info("Ended initializeWait")
 				break
 			}
-
-			uploadInvalidFileToS3IfExist()
 
 			LOGGER.Info("Splitting...")
 			err = splitter.SplitCsv()
@@ -269,19 +273,13 @@ func Consume() error {
 	return nil
 }
 
-func uploadInvalidFileToS3IfExist() {
+func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup) {
 	LOGGER := customLogger.GetLogger()
 	LOGGER.Info("*******UPLOADING INVALID FILE*******")
-	invalidGoroutinesWaitGroup := sync.WaitGroup{}
 
 	invalidGoroutinesWaitGroup.Add(1)
 
 	go awsClient.S3MutiPartUpload()
-
-	go func() {
-		invalidGoroutinesWaitGroup.Wait()
-		LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-	}()
 }
 
 func setConfigFromSqsMessage(jsonMessage string) error {
@@ -414,4 +412,12 @@ func sendAlertMessage(status string, message string) {
 		Message:  message,
 	}
 	awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+}
+
+func initializeWait(invalidGoroutinesWaitGroup *sync.WaitGroup) {
+	LOGGER := customLogger.GetLogger()
+	go func() {
+		invalidGoroutinesWaitGroup.Wait()
+		LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+	}()
 }
