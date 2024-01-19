@@ -199,10 +199,12 @@ func Validate(filePath string) (anyValidRow bool, err error) {
 
 	LOGGER.Debug("**********Headers are written**********")
 
+	maxChannelSize := 50000000
+
 	// Create channels for communication between workers
-	inputCh := make(chan []string, 50000)
-	validOutputCh := make(chan []string, 50000)
-	invalidOutputCh := make(chan []string, 50000)
+	inputCh := make(chan []string, maxChannelSize)
+	validOutputCh := make(chan []string, maxChannelSize)
+	invalidOutputCh := make(chan []string, maxChannelSize)
 
 	// Use WaitGroup to wait for all workers to finish
 	var wg sync.WaitGroup
