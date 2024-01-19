@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -151,7 +152,6 @@ func Validate(filePath string) (bool, error) {
 		LOGGER.Error("Error while Creating validOutputFile:", err)
 		return false, err
 	}
-	defer validOutputFile.Close()
 
 	// Open invalid output file
 	LOGGER.Debug("Creating invalidOutputFileName:", invalidOutputFileName)
@@ -165,17 +165,14 @@ func Validate(filePath string) (bool, error) {
 		LOGGER.Error("Error while Creating invalidOutputFile:", err)
 		return false, err
 	}
-	defer invalidOutputFile.Close()
 
 	// Create CSV reader for input file
 	reader := csv.NewReader(inputFile)
 
 	// Create CSV writer for output file
 	validWriter := csv.NewWriter(validOutputFile)
-	defer validWriter.Flush()
 
 	invalidWriter := csv.NewWriter(invalidOutputFile)
-	defer invalidWriter.Flush()
 
 	// Read the header from the input file and write it to the invalid output file with the new "remarks" column
 	header, err := reader.Read()
@@ -202,7 +199,7 @@ func Validate(filePath string) (bool, error) {
 
 	LOGGER.Debug("**********Headers are written**********")
 
-	maxChannelSize := 50000000
+	maxChannelSize := 5000000
 
 	// Create channels for communication between workers
 	inputCh := make(chan []string, maxChannelSize)
@@ -220,47 +217,55 @@ func Validate(filePath string) (bool, error) {
 
 	// Feed input rows to the workers through the input channel
 	go func() {
+		defer close(inputCh)
 		for {
 			row, err := reader.Read()
 			if err != nil {
 				LOGGER.Error(err)
-				awsClient.SendAlertMessage("ERROR", "Reader closed abruptly, check valid - invalid count")
-				close(inputCh)
+				if err == io.EOF {
+					LOGGER.Info("Successfully read the file. EOF Reached")
+				} else {
+					awsClient.SendAlertMessage("FAILED", "Error reading the input File")
+				}
 				break
 			}
 			inputCh <- row
 		}
 	}()
 
-	// Close the output channel when all workers finish
+	// Collect results from the output channel and write them to the output file
 	go func() {
-		wg.Wait()
-		close(validOutputCh)
-		close(invalidOutputCh)
+		defer validWriter.Flush()
+		defer validOutputFile.Close()
+		for row := range validOutputCh {
+			err := validWriter.Write(row)
+			if err != nil {
+				LOGGER.Error(err)
+				return
+			}
+			if !anyValidRow {
+				anyValidRow = !anyValidRow
+			}
+		}
+	}()
+	go func() {
+		defer invalidWriter.Flush()
+		defer invalidOutputFile.Close()
+		for row := range invalidOutputCh {
+			err := invalidWriter.Write(row)
+			if err != nil {
+				LOGGER.Error(err)
+				return
+			}
+			if !anyInvalidRow {
+				anyInvalidRow = !anyInvalidRow
+			}
+		}
 	}()
 
-	// Collect results from the output channel and write them to the output file
-	for row := range validOutputCh {
-		err := validWriter.Write(row)
-		if err != nil {
-			LOGGER.Error(err)
-			return false, err
-		}
-		if !anyValidRow {
-			anyValidRow = !anyValidRow
-		}
-	}
-
-	for row := range invalidOutputCh {
-		err := invalidWriter.Write(row)
-		if err != nil {
-			LOGGER.Error(err)
-			return false, err
-		}
-		if !anyInvalidRow {
-			anyValidRow = !anyInvalidRow
-		}
-	}
+	wg.Wait()
+	close(validOutputCh)
+	close(invalidOutputCh)
 
 	LOGGER.Info("Validation completed. Results written to", invalidOutputFile, validOutputFile)
 

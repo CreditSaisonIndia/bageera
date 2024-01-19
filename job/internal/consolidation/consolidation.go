@@ -18,10 +18,10 @@ func Consolidate() {
 	LOGGER := customLogger.GetLogger()
 	chunksDir := utils.GetChunksDir()
 	LOGGER.Info("chunksDir :", chunksDir)
-	fileName, _ := utils.GetFileName()
-	LOGGER.Info("fileName :", fileName)
+	fileNameWithoutExt, _ := utils.GetFileName()
+	LOGGER.Info("fileName :", fileNameWithoutExt)
 	// Retrieve only original CSV files in the chunks directory
-	s_f_dir := filepath.Join(chunksDir, fileName+"_*_*.csv")
+	s_f_dir := filepath.Join(chunksDir, fileNameWithoutExt+"_valid"+"_*_*.csv")
 
 	matches, err := filepath.Glob(s_f_dir)
 	if err != nil {
@@ -43,8 +43,8 @@ func Consolidate() {
 		}
 		processedChunks[chunkID] = true
 
-		failureFilePath := fmt.Sprintf("%s_%s_failure.csv", fileName, chunkID)
-		successFilePath := fmt.Sprintf("%s_%s_success.csv", fileName, chunkID)
+		failureFilePath := fmt.Sprintf("%s_%s_failure.csv", fileNameWithoutExt, chunkID)
+		successFilePath := fmt.Sprintf("%s_%s_success.csv", fileNameWithoutExt, chunkID)
 		failureRowCount, err := getRowCount(filepath.Join(chunksDir, failureFilePath))
 		if err != nil {
 			log.Fatal(err)
@@ -83,7 +83,7 @@ func Consolidate() {
 	// Iterate over processed chunks and write counts to CSV
 	for chunkID, _ := range processedChunks {
 		// Write row counts to CSV
-		row := []string{chunkID, fmt.Sprintf("%s_%s.csv", fileName, chunkID),
+		row := []string{chunkID, fmt.Sprintf("%s_%s.csv", fileNameWithoutExt, chunkID),
 			fmt.Sprintf("%d", failureCounts[chunkID]), fmt.Sprintf("%d", successCounts[chunkID])}
 		if err := csvWriter.Write(row); err != nil {
 			log.Fatal(err)

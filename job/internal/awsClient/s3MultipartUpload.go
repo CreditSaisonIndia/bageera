@@ -16,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-
 const PartSize = 50_000_000
 const RETRIES = 2
 
@@ -30,7 +29,9 @@ type partUploadResult struct {
 var wg = sync.WaitGroup{}
 var ch = make(chan partUploadResult)
 
-func S3MutiPartUpload() {
+func S3MutiPartUpload(invalidGoroutinesWaitGroup *sync.WaitGroup) {
+	defer invalidGoroutinesWaitGroup.Done()
+
 	LOGGER := customLogger.GetLogger()
 
 	Init()

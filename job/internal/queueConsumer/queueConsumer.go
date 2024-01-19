@@ -286,7 +286,7 @@ func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup) {
 
 	invalidGoroutinesWaitGroup.Add(1)
 
-	go awsClient.S3MutiPartUpload()
+	go awsClient.S3MutiPartUpload(invalidGoroutinesWaitGroup)
 }
 
 func setConfigFromSqsMessage(jsonMessage string) error {
