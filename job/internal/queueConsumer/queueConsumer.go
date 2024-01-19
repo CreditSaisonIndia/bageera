@@ -167,7 +167,7 @@ func Consume() error {
 			}
 
 			LOGGER.Info("Validating the csv file at path:", path)
-			anyValidRow, anyCustomError, err := validation.Validate(path)
+			anyValidRow, err := validation.Validate(path)
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)

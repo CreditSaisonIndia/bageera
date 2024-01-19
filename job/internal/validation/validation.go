@@ -160,7 +160,7 @@ func Validate(filePath string) (anyValidRow bool, err error) {
 	invalidOutputFile, err := os.Create(invalidOutputFileName)
 	if err != nil {
 		LOGGER.Error("Error while Creating invalidOutputFile:", err)
-		return false, false, err
+		return false, err
 	}
 	defer invalidOutputFile.Close()
 
