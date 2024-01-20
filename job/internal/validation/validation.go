@@ -135,7 +135,7 @@ func Validate(filePath string) (bool, error) {
 	LOGGER.Debug("InvalidOutputFilePath:", invalidOutputFileName)
 
 	// Number of worker goroutines
-	numWorkers := 200
+	numWorkers := 100
 
 	// Open input file
 	inputFile, err := os.Open(filePath)
@@ -199,7 +199,7 @@ func Validate(filePath string) (bool, error) {
 
 	LOGGER.Debug("**********Headers are written**********")
 
-	maxChannelSize := 5000000
+	maxChannelSize := 50000
 
 	// Create channels for communication between workers
 	inputCh := make(chan []string, maxChannelSize)
