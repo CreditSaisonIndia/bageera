@@ -1,4 +1,4 @@
-package validation
+package sequentialValidator
 
 import (
 	"encoding/csv"
@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
@@ -47,23 +46,6 @@ func isValidDate(fl validator.FieldLevel) bool {
 
 	// Check if there was an error during parsing
 	return err == nil
-}
-
-// Worker function to validate each row of the file
-func val_worker(id int, inputCh <-chan []string, validOutputCh chan<- []string, invalidOutputCh chan<- []string, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for row := range inputCh {
-		// Your validation logic goes here
-		isValid, remarks := validateRow(row)
-		// Send the row with the validation status to the output channel
-		if isValid {
-			validOutputCh <- row
-		} else {
-			row = append(row, remarks)
-			invalidOutputCh <- row
-		}
-
-	}
 }
 
 // Validation logic, replace this with your own validation criteria
@@ -134,9 +116,6 @@ func Validate(filePath string) (bool, error) {
 	LOGGER.Debug("ValidOutputFilePath:", validOutputFileName)
 	LOGGER.Debug("InvalidOutputFilePath:", invalidOutputFileName)
 
-	// Number of worker goroutines
-	numWorkers := 200
-
 	// Open input file
 	inputFile, err := os.Open(filePath)
 	if err != nil {
@@ -187,93 +166,45 @@ func Validate(filePath string) (bool, error) {
 		return false, err
 	}
 
-	LOGGER.Debug("**********Headers are written**********")
-
-	maxChannelSize := 50000
-
-	// Create channels for communication between workers
-	inputCh := make(chan []string, maxChannelSize)
-	validOutputCh := make(chan []string, maxChannelSize)
-	invalidOutputCh := make(chan []string, maxChannelSize)
-
-	// Use WaitGroup to wait for all workers to finish
-	var wg sync.WaitGroup
-
-	// Start worker goroutines
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go val_worker(i, inputCh, validOutputCh, invalidOutputCh, &wg)
+	err = validWriter.Write(header)
+	if err != nil {
+		return false, err
 	}
 
-	// Feed input rows to the workers through the input channel
-	var inputWg sync.WaitGroup
-	var validWg sync.WaitGroup
-	var invalidWg sync.WaitGroup
-	inputWg.Add(1)
-	go func() {
-		defer inputWg.Done()
-		for {
-			row, err := reader.Read()
-			if err != nil {
-				LOGGER.Error(err)
-				if err == io.EOF {
-					LOGGER.Info("Successfully read the file. EOF Reached")
-				} else {
-					awsClient.SendAlertMessage("FAILED", "Error reading the input File")
-				}
-				break
-			}
-			inputCh <- row
-		}
-	}()
+	header = append(header, "remarks")
+	err = invalidWriter.Write(header)
+	if err != nil {
+		return false, err
+	}
 
-	validWg.Add(1)
-	// Collect results from the output channel and write them to the output file
-	go func() {
-		defer validWg.Done()
-		err = validWriter.Write(header)
+	LOGGER.Debug("**********Headers are written**********")
+
+	// Feed input rows to the workers through the input channel
+	for {
+		row, err := reader.Read()
 		if err != nil {
-			return
-		}
-		for row := range validOutputCh {
-			err := validWriter.Write(row)
-			if err != nil {
-				LOGGER.Error(err)
-				return
+			LOGGER.Error(err)
+			if err == io.EOF {
+				LOGGER.Info("Successfully read the file. EOF Reached")
+			} else {
+				awsClient.SendAlertMessage("FAILED", "Error reading the input File")
 			}
+			break
+		}
+		isValid, remarks := validateRow(row)
+		if isValid {
+			writeToFile(validWriter, row)
 			if !anyValidRow {
 				anyValidRow = !anyValidRow
 			}
-		}
-	}()
-
-	invalidWg.Add(1)
-	go func() {
-		defer invalidWg.Done()
-		header = append(header, "remarks")
-		err = invalidWriter.Write(header)
-		if err != nil {
-			return
-		}
-		for row := range invalidOutputCh {
-			err := invalidWriter.Write(row)
-			if err != nil {
-				LOGGER.Error(err)
-				return
-			}
+		} else {
+			row_remarks := append(row, remarks)
+			writeToFile(invalidWriter, row_remarks)
 			if !anyInvalidRow {
 				anyInvalidRow = !anyInvalidRow
 			}
 		}
-	}()
-
-	wg.Wait()
-	inputWg.Wait()
-	invalidWg.Wait()
-	validWg.Wait()
-	close(inputCh)
-	close(validOutputCh)
-	close(invalidOutputCh)
+	}
 	invalidWriter.Flush()
 	invalidOutputFile.Close()
 	validWriter.Flush()
@@ -293,4 +224,13 @@ func Validate(filePath string) (bool, error) {
 	}
 
 	return !anyValidRow, nil
+}
+
+func writeToFile(writer *csv.Writer, row []string) {
+	LOGGER := customLogger.GetLogger()
+	err := writer.Write(row)
+	if err != nil {
+		LOGGER.Error(err)
+		return
+	}
 }

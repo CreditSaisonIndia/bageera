@@ -15,10 +15,10 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion"
+	"github.com/CreditSaisonIndia/bageera/internal/sequentialValidator"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
-	"github.com/CreditSaisonIndia/bageera/internal/validation"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -166,7 +166,7 @@ func Consume() error {
 			}
 
 			LOGGER.Info("Validating the csv file at path:", path)
-			allInvalidRows, err := validation.Validate(path)
+			allInvalidRows, err := sequentialValidator.Validate(path)
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
