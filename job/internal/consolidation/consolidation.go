@@ -19,10 +19,11 @@ func Consolidate() {
 	chunksDir := utils.GetChunksDir()
 	LOGGER.Info("chunksDir :", chunksDir)
 	fileNameWithoutExt, _ := utils.GetFileName()
+	fileNameWithoutExt = fileNameWithoutExt + "_valid"
 	LOGGER.Info("fileName :", fileNameWithoutExt)
 	// Retrieve only original CSV files in the chunks directory
-	s_f_dir := filepath.Join(chunksDir, fileNameWithoutExt+"_valid"+"_*_*.csv")
-
+	s_f_dir := filepath.Join(chunksDir, fileNameWithoutExt+"_*_*.csv")
+	LOGGER.Info("s_f_dir :", s_f_dir)
 	matches, err := filepath.Glob(s_f_dir)
 	if err != nil {
 		log.Fatal(err)

@@ -135,7 +135,7 @@ func Validate(filePath string) (bool, error) {
 	LOGGER.Debug("InvalidOutputFilePath:", invalidOutputFileName)
 
 	// Number of worker goroutines
-	numWorkers := 100
+	numWorkers := 200
 
 	// Open input file
 	inputFile, err := os.Open(filePath)
@@ -187,16 +187,6 @@ func Validate(filePath string) (bool, error) {
 		return false, err
 	}
 
-	err = validWriter.Write(header)
-	if err != nil {
-		return false, err
-	}
-	header = append(header, "remarks")
-	err = invalidWriter.Write(header)
-	if err != nil {
-		return false, err
-	}
-
 	LOGGER.Debug("**********Headers are written**********")
 
 	maxChannelSize := 50000
@@ -235,8 +225,10 @@ func Validate(filePath string) (bool, error) {
 
 	// Collect results from the output channel and write them to the output file
 	go func() {
-		defer validWriter.Flush()
-		defer validOutputFile.Close()
+		err = validWriter.Write(header)
+		if err != nil {
+			return
+		}
 		for row := range validOutputCh {
 			err := validWriter.Write(row)
 			if err != nil {
@@ -249,8 +241,12 @@ func Validate(filePath string) (bool, error) {
 		}
 	}()
 	go func() {
-		defer invalidWriter.Flush()
-		defer invalidOutputFile.Close()
+
+		header = append(header, "remarks")
+		err = invalidWriter.Write(header)
+		if err != nil {
+			return
+		}
 		for row := range invalidOutputCh {
 			err := invalidWriter.Write(row)
 			if err != nil {
@@ -266,6 +262,10 @@ func Validate(filePath string) (bool, error) {
 	wg.Wait()
 	close(validOutputCh)
 	close(invalidOutputCh)
+	defer invalidWriter.Flush()
+	defer invalidOutputFile.Close()
+	defer validWriter.Flush()
+	defer validOutputFile.Close()
 
 	LOGGER.Info("Validation completed. Results written to", invalidOutputFile, validOutputFile)
 
