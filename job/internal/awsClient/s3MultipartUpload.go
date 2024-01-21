@@ -1,7 +1,9 @@
 package awsClient
 
 import (
+	"bufio"
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,7 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-const PartSize = 50_000_000
+const PartSize = 10 * 1024 * 1024
 const RETRIES = 2
 
 var s3session *s3.S3
@@ -47,12 +49,10 @@ func S3MutiPartUpload(invalidGoroutinesWaitGroup *sync.WaitGroup) {
 	}
 	defer file.Close()
 
-	stat, _ := file.Stat()
-	fileSize := stat.Size()
+	// stat, _ := file.Stat()
+	// fileSize := stat.Size()
 
-	buffer := make([]byte, fileSize)
-
-	_, _ = file.Read(buffer)
+	bufferedReader := bufio.NewReader(file)
 
 	expiryDate := time.Now().AddDate(0, 0, 1)
 
@@ -67,23 +67,28 @@ func S3MutiPartUpload(invalidGoroutinesWaitGroup *sync.WaitGroup) {
 		return
 	}
 
-	var start, currentSize int
-	var remaining = int(fileSize)
+	// var start, currentSize int
+	// var remaining = int(fileSize)
 	var partNum = 1
 	var completedParts []*s3.CompletedPart
-	for start = 0; remaining > 0; start += PartSize {
-		wg.Add(1)
-		if remaining < PartSize {
-			currentSize = remaining
-		} else {
-			currentSize = PartSize
+	for {
+		// Read the next chunk from the file
+		data := make([]byte, PartSize)
+		n, err := bufferedReader.Read(data)
+		if err != nil && err != io.EOF {
+			LOGGER.Error("Error while reading file: ", err)
+			return
 		}
-		go uploadToS3(createdResp, buffer[start:start+currentSize], partNum, &wg)
 
-		remaining -= currentSize
-		LOGGER.Info("Uplaodind of part ", partNum, " started and remaning is ", remaining)
+		if n == 0 {
+			break
+		}
+
+		wg.Add(1)
+		go uploadToS3(createdResp, data[:n], partNum, &wg)
+
+		LOGGER.Info("Upload of part ", partNum, " started")
 		partNum++
-
 	}
 
 	go func() {

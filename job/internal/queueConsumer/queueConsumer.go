@@ -173,16 +173,17 @@ func Consume() error {
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err))
 				break
 			}
-			invalidGoroutinesWaitGroup := sync.WaitGroup{}
-			uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup)
+			//Skipping for now
+			// invalidGoroutinesWaitGroup := sync.WaitGroup{}
+			// uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup)
 
 			if allInvalidRows {
 				LOGGER.Error("No valid rows present after validation")
-				// sendAlertMessage("FAILED", "No Valid rows present after validation")
-				LOGGER.Info("Starting initialize Wait")
-				invalidGoroutinesWaitGroup.Wait()
-				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				LOGGER.Info("Ended initialize Wait")
+				awsClient.sendAlertMessage("FAILED", "No Valid rows present after validation")
+				// LOGGER.Info("Starting initialize Wait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initialize Wait")
 				break
 			}
 
@@ -192,10 +193,10 @@ func Consume() error {
 				serviceConfig.PrintSettings()
 				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE SPLITTING CSV - %s", err))
-				LOGGER.Info("Starting initializeWait")
-				invalidGoroutinesWaitGroup.Wait()
-				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				LOGGER.Info("Ended initializeWait")
+				// LOGGER.Info("Starting initializeWait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initializeWait")
 				break
 			}
 
@@ -240,10 +241,10 @@ func Consume() error {
 				LOGGER.Error("ERROR WHILE INITIALIZING DB POOL : ", err)
 				serviceConfig.PrintSettings()
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE INITIALIZING DB POOL - %s", err))
-				LOGGER.Info("Starting initializeWait")
-				invalidGoroutinesWaitGroup.Wait()
-				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				LOGGER.Info("Ended initializeWait")
+				// LOGGER.Info("Starting initializeWait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initializeWait")
 				break
 			}
 
@@ -271,10 +272,10 @@ func Consume() error {
 			LOGGER.Info("**********CLOSING POOL************")
 			pool.Close()
 
-			LOGGER.Info("Starting initializeWait")
-			invalidGoroutinesWaitGroup.Wait()
-			LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-			LOGGER.Info("Ended initializeWait")
+			// LOGGER.Info("Starting initializeWait")
+			// invalidGoroutinesWaitGroup.Wait()
+			// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+			// LOGGER.Info("Ended initializeWait")
 		}
 	}
 	return nil
