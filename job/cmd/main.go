@@ -20,7 +20,7 @@ func main() {
 	serviceConfig.SetUp(env)
 	LOGGER.Info("Properties configuration successful.")
 
-	retries := 10
+	retries := 3
 
 	for i := 0; i < retries; i++ {
 		LOGGER.Info("****** Running Queue consumer *******")
@@ -33,5 +33,5 @@ func main() {
 		time.Sleep(5 * time.Second)
 		LOGGER.Info("Retrying...")
 	}
-
+	LOGGER.Info("**** JOB IS DONE | KILLING THE INSTANCE ****")
 }
