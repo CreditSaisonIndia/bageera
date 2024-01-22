@@ -44,7 +44,7 @@ def post_to_slack(data, message):
     for key, val in message.items():
         if val !="":
             if len(data["attachments"][0]["blocks"][block_index]["fields"]) + 2 > BLOCK_LIMIT:
-                block_index = 2
+                block_index += 1
                 data["attachments"][0]["blocks"].append(NEW_BLOCK)
             mrkdwn = copy.deepcopy(MRKDWN_FIELD_JSON)
             mrkdwn["text"] = mrkdwn["text"].format(key)
