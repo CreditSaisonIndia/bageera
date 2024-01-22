@@ -61,3 +61,5 @@ test/go.sum
 test/main
 test/main.go
 test/test.csv
+test/test1/main.go
+test/test1/test.csv
