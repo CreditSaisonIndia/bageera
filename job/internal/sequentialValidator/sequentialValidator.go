@@ -220,7 +220,7 @@ func Validate(filePath string) (bool, error) {
 	if !anyValidRow {
 		awsClient.SendAlertMessage("FAILED", "No valid rows found")
 	} else if anyInvalidRow {
-		awsClient.SendAlertMessage("PARTIAL SUCCESS", "Invalid rows found")
+		awsClient.SendAlertMessage("PARTIAL FAILURE", "Invalid rows found")
 	}
 
 	return !anyValidRow, nil
