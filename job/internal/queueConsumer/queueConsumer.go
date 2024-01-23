@@ -98,6 +98,8 @@ func Consume() error {
 		// Check if there are no more messages
 		if len(result.Messages) == 0 {
 			LOGGER.Info("No more messages in the queue. Exiting...")
+			//close(producer.ProducerConcurrencyCh)
+			//close(consumer.ConsumerConcurrencyCh)
 			break
 		}
 
@@ -119,7 +121,11 @@ func Consume() error {
 
 			LOGGER.Info("*********BEGIN********")
 			awsClient.SendAlertMessage("IN_PROGRESS", "")
-
+			//logFile, err := fileUtilityWrapper.AddLogFileSugar()
+			// if err != nil {
+			// 	LOGGER.Info("Error while creating log file : ", err)
+			// 	return err
+			// }
 			chunksDir := utils.GetChunksDir()
 			err = fileUtilityWrapper.DeleteDirIfExist(chunksDir)
 			if err != nil {
@@ -144,6 +150,7 @@ func Consume() error {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
 				if err.Error() == "S3KeyError" {
+					// Alert sent in the internal function already
 					delteMessageFromSQS(deleteParams, sqsClient)
 				}
 				break
@@ -166,15 +173,17 @@ func Consume() error {
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err))
 				break
 			}
-			invalidGoroutinesWaitGroup := sync.WaitGroup{}
-			uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup)
+			//Skipping for now Will be added in phase 2
+			// invalidGoroutinesWaitGroup := sync.WaitGroup{}
+			// uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup)
 
 			if allInvalidRows {
 				LOGGER.Error("No valid rows present after validation")
-				LOGGER.Info("Starting initialize Wait")
-				invalidGoroutinesWaitGroup.Wait()
-				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				LOGGER.Info("Ended initialize Wait")
+				awsClient.SendAlertMessage("FAILED", "No Valid rows present after validation")
+				// LOGGER.Info("Starting initialize Wait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initialize Wait")
 				break
 			}
 
@@ -184,10 +193,10 @@ func Consume() error {
 				serviceConfig.PrintSettings()
 				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE SPLITTING CSV - %s", err))
-				LOGGER.Info("Starting initializeWait")
-				invalidGoroutinesWaitGroup.Wait()
-				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				LOGGER.Info("Ended initializeWait")
+				// LOGGER.Info("Starting initializeWait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initializeWait")
 				break
 			}
 
@@ -232,10 +241,10 @@ func Consume() error {
 				LOGGER.Error("ERROR WHILE INITIALIZING DB POOL : ", err)
 				serviceConfig.PrintSettings()
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE INITIALIZING DB POOL - %s", err))
-				LOGGER.Info("Starting initializeWait")
-				invalidGoroutinesWaitGroup.Wait()
-				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				LOGGER.Info("Ended initializeWait")
+				// LOGGER.Info("Starting initializeWait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initializeWait")
 				break
 			}
 
@@ -243,7 +252,27 @@ func Consume() error {
 			defer pool.Close()
 			insertion.BeginInsertion()
 
-			consolidation.Consolidate()
+			rowCountFilePath, err := consolidation.Consolidate()
+			if err != nil {
+				LOGGER.Error("ERROR WHILE CONSOLIDATION : ", err)
+				serviceConfig.PrintSettings()
+				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE CONSOLIDATION - %s", err))
+				// LOGGER.Info("Starting initializeWait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initializeWait")
+				break
+			}
+
+			verifier := &consolidation.VerifyConsolidatorImpl{}
+			result := verifier.CheckConsolidator(rowCountFilePath)
+			if result.IsValid {
+				LOGGER.Info("Validation passed for Result")
+				awsClient.SendAlertMessage("SUCCESS", "")
+			} else {
+				LOGGER.Error("Validation failed for Result : ", result.Err)
+				awsClient.SendAlertMessage("FAILED", "")
+			}
 
 			LOGGER.Info("Exiting...")
 			endTime := time.Now()
@@ -259,14 +288,13 @@ func Consume() error {
 				}
 			}(logFile)
 
-			awsClient.SendAlertMessage("SUCCESS", "")
 			LOGGER.Info("**********CLOSING POOL************")
 			pool.Close()
 
-			LOGGER.Info("Starting initializeWait")
-			invalidGoroutinesWaitGroup.Wait()
-			LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-			LOGGER.Info("Ended initializeWait")
+			// LOGGER.Info("Starting initializeWait")
+			// invalidGoroutinesWaitGroup.Wait()
+			// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+			// LOGGER.Info("Ended initializeWait")
 		}
 	}
 	return nil
