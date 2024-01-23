@@ -63,3 +63,7 @@ test/main.go
 test/test.csv
 test/test1/main.go
 test/test1/test.csv
+test/test1/val3inval2test10/chunks/val3inval2test10_1.csv
+test/test1/val3inval2test10/chunks/val3inval2test10_1_failure.csv
+test/test1/val3inval2test10/chunks/val3inval2test10_1_success.csv
+test/test1/val3inval2test10/result/row_counts.csv

@@ -30,7 +30,8 @@ func SplitCsv() error {
 	splitter.FileChunkSize = 20000000 //in bytes (200MB)
 	baseDir := utils.GetMetadataBaseDir()
 	fileNameWithoutExt, fileName := utils.GetFileName()
-	inputPath := filepath.Join(baseDir, fileNameWithoutExt+"_valid.csv")
+	fileNameWithoutExt = fileNameWithoutExt + "_valid"
+	inputPath := filepath.Join(baseDir, fileNameWithoutExt+".csv")
 	ErrBigFileChunkSize := errors.New("file chunk size is bigger than input file")
 	_, err := splitter.Split(inputPath, outputChunkDir)
 	if err != nil && ErrBigFileChunkSize.Error() == err.Error() {
