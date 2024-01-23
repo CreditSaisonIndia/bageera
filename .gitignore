@@ -56,8 +56,3 @@ __pycache__/
 venv/
 job/offer
 job/app
-test/go.mod
-test/go.sum
-test/main
-test/main.go
-test/test.csv
