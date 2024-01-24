@@ -58,6 +58,9 @@ Resources:
                 Rules:
                   - Name: prefix
                     Value: offer/lpc
+                  - Name: suffix
+                    Value: .csv
+                    
       Environment:
         Variables:
           SNS_TOPIC_ARN: !ImportValue pq-offer-bucket-upload-event-sns-Arn
