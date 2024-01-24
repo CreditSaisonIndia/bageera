@@ -3,6 +3,7 @@ package queueConsumer
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -14,7 +15,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion"
-	"github.com/CreditSaisonIndia/bageera/internal/model"
+	"github.com/CreditSaisonIndia/bageera/internal/sequentialValidator"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
@@ -112,15 +113,14 @@ func Consume() error {
 				LOGGER.Error(err)
 				break
 			}
+			deleteParams := &sqs.DeleteMessageInput{
+				QueueUrl:      aws.String(queueURL),
+				ReceiptHandle: msg.ReceiptHandle,
+			}
 			startTime := time.Now()
 
 			LOGGER.Info("*********BEGIN********")
-			baseAlert := model.BaseAlert{
-				FileName: serviceConfig.ApplicationSetting.FileName,
-				Lpc:      serviceConfig.ApplicationSetting.Lpc,
-				Status:   "IN_PROGRESS",
-			}
-			awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+			awsClient.SendAlertMessage("IN_PROGRESS", "")
 			//logFile, err := fileUtilityWrapper.AddLogFileSugar()
 			// if err != nil {
 			// 	LOGGER.Info("Error while creating log file : ", err)
@@ -128,6 +128,12 @@ func Consume() error {
 			// }
 			chunksDir := utils.GetChunksDir()
 			err = fileUtilityWrapper.DeleteDirIfExist(chunksDir)
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				break
+			}
+			err := os.MkdirAll(chunksDir, os.ModePerm)
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
@@ -143,20 +149,56 @@ func Consume() error {
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
+				if err.Error() == "S3KeyError" {
+					// Alert sent in the internal function already
+					delteMessageFromSQS(deleteParams, sqsClient)
+				}
 				break
 			}
 
 			LOGGER.Info("downloaded file path:", path)
+
+			err = delteMessageFromSQS(deleteParams, sqsClient)
+			if err != nil {
+				LOGGER.Error("Error while deleting the message from queue", err)
+				awsClient.SendAlertMessage("ERROR", fmt.Sprintf("Error while deleting the message from queue - %s", err))
+				break
+			}
+
+			LOGGER.Info("Validating the csv file at path:", path)
+			allInvalidRows, err := sequentialValidator.Validate(path)
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err))
+				break
+			}
+			//Skipping for now Will be added in phase 2
+			// invalidGoroutinesWaitGroup := sync.WaitGroup{}
+			// uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup)
+
+			if allInvalidRows {
+				LOGGER.Error("No valid rows present after validation")
+				awsClient.SendAlertMessage("FAILED", "No Valid rows present after validation")
+				// LOGGER.Info("Starting initialize Wait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initialize Wait")
+				break
+			}
 
 			LOGGER.Info("Splitting...")
 			err = splitter.SplitCsv()
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
+				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE SPLITTING CSV - %s", err))
+				// LOGGER.Info("Starting initializeWait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initializeWait")
 				break
 			}
-
-			uploadInvalidFileToS3IfExist()
 
 			// Initialize the global CustomDBManager from the new package
 			// database.InitSqlxDb()
@@ -196,8 +238,13 @@ func Consume() error {
 			// Get a database connection pool
 			pool, err := p.GetDBPool(context.Background(), cfg, sess)
 			if err != nil {
-				LOGGER.Error("ERRON WHILE INITIALIZING DB POOL : ", err)
+				LOGGER.Error("ERROR WHILE INITIALIZING DB POOL : ", err)
 				serviceConfig.PrintSettings()
+				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE INITIALIZING DB POOL - %s", err))
+				// LOGGER.Info("Starting initializeWait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initializeWait")
 				break
 			}
 
@@ -205,7 +252,27 @@ func Consume() error {
 			defer pool.Close()
 			insertion.BeginInsertion()
 
-			consolidation.Consolidate()
+			rowCountFilePath, err := consolidation.Consolidate()
+			if err != nil {
+				LOGGER.Error("ERROR WHILE CONSOLIDATION : ", err)
+				serviceConfig.PrintSettings()
+				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE CONSOLIDATION - %s", err))
+				// LOGGER.Info("Starting initializeWait")
+				// invalidGoroutinesWaitGroup.Wait()
+				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				// LOGGER.Info("Ended initializeWait")
+				break
+			}
+
+			verifier := &consolidation.VerifyConsolidatorImpl{}
+			result := verifier.CheckConsolidator(rowCountFilePath)
+			if result.IsValid {
+				LOGGER.Info("Validation passed for Result")
+				awsClient.SendAlertMessage("SUCCESS", "")
+			} else {
+				LOGGER.Error("Validation failed for Result : ", result.Err)
+				awsClient.SendAlertMessage("FAILED", "")
+			}
 
 			LOGGER.Info("Exiting...")
 			endTime := time.Now()
@@ -221,42 +288,25 @@ func Consume() error {
 				}
 			}(logFile)
 
-			// Delete the message from the queue after processing
-			deleteParams := &sqs.DeleteMessageInput{
-				QueueUrl:      aws.String(queueURL),
-				ReceiptHandle: msg.ReceiptHandle,
-			}
-			_, err = sqsClient.DeleteMessage(deleteParams)
-			if err != nil {
-				LOGGER.Error("Error deleting message:", err)
-				serviceConfig.PrintSettings()
-			}
-			baseAlert = model.BaseAlert{
-				FileName: serviceConfig.ApplicationSetting.FileName,
-				Lpc:      serviceConfig.ApplicationSetting.Lpc,
-				Status:   "SUCCESS",
-			}
-			awsClient.Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
 			LOGGER.Info("**********CLOSING POOL************")
 			pool.Close()
+
+			// LOGGER.Info("Starting initializeWait")
+			// invalidGoroutinesWaitGroup.Wait()
+			// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+			// LOGGER.Info("Ended initializeWait")
 		}
 	}
 	return nil
 }
 
-func uploadInvalidFileToS3IfExist() {
+func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup) {
 	LOGGER := customLogger.GetLogger()
 	LOGGER.Info("*******UPLOADING INVALID FILE*******")
-	invalidGoroutinesWaitGroup := sync.WaitGroup{}
 
 	invalidGoroutinesWaitGroup.Add(1)
 
-	go awsClient.S3MutiPartUpload()
-
-	go func() {
-		invalidGoroutinesWaitGroup.Wait()
-		LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-	}()
+	go awsClient.S3MutiPartUpload(invalidGoroutinesWaitGroup)
 }
 
 func setConfigFromSqsMessage(jsonMessage string) error {
@@ -368,4 +418,15 @@ func setConfigFromSqsMessage(jsonMessage string) error {
 
 	return nil
 
+}
+
+func delteMessageFromSQS(deleteParams *sqs.DeleteMessageInput, sqsClient *sqs.SQS) error {
+	LOGGER := customLogger.GetLogger()
+	_, err := sqsClient.DeleteMessage(deleteParams)
+	if err != nil {
+		LOGGER.Error("Error deleting message:", err)
+		serviceConfig.PrintSettings()
+		return err
+	}
+	return nil
 }

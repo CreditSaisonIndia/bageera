@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Master to support deployment at fetchFailuresForNonFldg level
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Environment Type
+        Parameters:
+          - EnvironmentType
+    ParameterLabels:
+      EnvironmentType:
+        default: Environment Type
+
+Parameters:
+  EnvironmentType:
+    Type: String
+    Description: Environment of Deployment
+    AllowedValues: [ 'dev', 'qa', 'qa2', 'uat', 'int', 'production' ]
+    Default: 'dev'
+
+Resources:
+  alertsSlackNotificationFunction:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Fn::Transform:
+        Name: 'GetSSMParameter'
+        Parameters:
+          parameterName: PQ-WHITELISTING-ALERTS-SLACK-WEBHOOK-URL
+      Parameters:
+        AlertsSlackWebhookUrl: '$$PQ-WHITELISTING-ALERTS-SLACK-WEBHOOK-URL$$'
+      TemplateURL: slackNotification/package.yaml

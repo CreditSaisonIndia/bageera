@@ -27,6 +27,21 @@ func CreateReader(filePath string) (io.Reader, error) {
 	return file, nil
 }
 
+func CreateDirIfDoesNotExist(dirPath string) error {
+	LOGGER := customLogger.GetLogger()
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		LOGGER.Info("Directory does not exist, so creating the directory:", dirPath)
+		if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
+			log.Println("Error creating directory:", err)
+			return err
+		}
+		return nil
+	} else {
+		LOGGER.Info("Directory exists:", dirPath)
+		return nil
+	}
+}
+
 func DeleteDirIfExist(outputChunkDir string) error {
 	LOGGER := customLogger.GetLogger()
 	if _, err := os.Stat(outputChunkDir); os.IsNotExist(err) {
@@ -83,6 +98,12 @@ func S3FileDownload() (string, error) {
 	if isFileExist {
 		LOGGER.Info("File exist at path : ", absolutePath, "  | Hence skipping download")
 		return absolutePath, nil
+	} else {
+		err := os.MkdirAll(baseDir, os.ModePerm)
+		if err != nil {
+			serviceConfig.PrintSettings()
+			return "", err
+		}
 	}
 
 	localFile, err := os.Create(absolutePath)
@@ -103,7 +124,11 @@ func S3FileDownload() (string, error) {
 		Key:    aws.String(objectKey),
 	})
 	if err != nil {
-		LOGGER.Fatal("Error downloading file from S3:", err)
+		awsClient.SendAlertMessage("FAILED", fmt.Sprintf("Failed while downloading the file | Bucket - %s | Object Key - %s", bucketName, objectKey))
+
+		LOGGER.Error("Error downloading file from S3:", err)
+		// return "", fmt.Errorf("S3KeyError")
+		return "", errors.New("S3KeyError")
 	}
 
 	defer func(file *s3.GetObjectOutput) {

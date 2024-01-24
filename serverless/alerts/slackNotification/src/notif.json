@@ -1,0 +1,19 @@
+{
+  "attachments": [
+      {
+          "fallback": "PQ Whitelisting Alerts",
+          "color": "#D00000",
+          "blocks": [
+              {
+                  "type": "section",
+                  "text": {
+                      "text": "*:alert:PQ Whitelist Alert*",
+                      "type": "mrkdwn"
+                  },
+                  "fields": [
+                  ]
+              }
+          ]
+      }
+  ]
+}

@@ -53,7 +53,7 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	if err == io.EOF {
 		LOGGER.Error("Reached End of the file with overall size of : ", len(offers))
 	} else if err != nil {
-		LOGGER.Error("Error while reading fileName: : ", fileName)
+		LOGGER.Error("Error while reading fileName: : ", fileName, err)
 		LOGGER.Error("Producer finished : ", filePath)
 		<-ProducerConcurrencyCh
 		return

@@ -23,11 +23,24 @@ func GetBaseDir() string {
 
 }
 
-func GetInvalidBaseDir() string {
+func GetMetadataUsecaseDir(usecaseDir string) string {
 	fmt.Printf("Fetching EFS base path value From Settings : %s\n", serviceConfig.ApplicationSetting.EfsBasePath)
 	fmt.Printf("Fetching EFS base path value From env : %s\n", os.Getenv("efsBasePath"))
 	efsBasePath := os.Getenv("efsBasePath")
-	objectKey := GetInvalidObjectKey()
+	objectKey := GetMetadataObjectKey()
+	dirPath := filepath.Dir(objectKey)
+	// Extract the fileName without extension
+	fileName := filepath.Base(objectKey)
+	fileNameWithoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]
+	return filepath.Join(efsBasePath, dirPath, fileNameWithoutExt, usecaseDir)
+
+}
+
+func GetMetadataBaseDir() string {
+	fmt.Printf("Fetching EFS base path value From Settings : %s\n", serviceConfig.ApplicationSetting.EfsBasePath)
+	fmt.Printf("Fetching EFS base path value From env : %s\n", os.Getenv("efsBasePath"))
+	efsBasePath := os.Getenv("efsBasePath")
+	objectKey := GetMetadataObjectKey()
 	dirPath := filepath.Dir(objectKey)
 	// Extract the fileName without extension
 	fileName := filepath.Base(objectKey)
@@ -36,12 +49,34 @@ func GetInvalidBaseDir() string {
 
 }
 
+func GetInvalidBaseDir() string {
+	return GetMetadataUsecaseDir("invalid")
+}
+
+func GetMetadataObjectKey() string {
+	objectKey := serviceConfig.ApplicationSetting.ObjectKey
+
+	parts1 := strings.Split(objectKey, "/")
+
+	parts1[0] = "metadata"
+
+	// Join the parts back into a string
+	metadataObjectKey := strings.Join(parts1, "/")
+
+	dirPath := filepath.Dir(metadataObjectKey)
+	// Extract the fileName without extension
+	fileName := filepath.Base(objectKey)
+
+	return filepath.Join(dirPath, fileName)
+
+}
+
 func GetInvalidObjectKey() string {
 	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 
 	parts1 := strings.Split(objectKey, "/")
 
-	parts1[0] = "invalidOffer"
+	parts1[0] = "metadata"
 
 	// Join the parts back into a string
 	invalidObjectKey := strings.Join(parts1, "/")
@@ -55,14 +90,14 @@ func GetInvalidObjectKey() string {
 }
 
 func GetChunksDir() string {
-	return filepath.Join(GetBaseDir(), "chunks")
+	return GetMetadataUsecaseDir("chunks")
 }
 
 func GetResultsDir() string {
-	return filepath.Join(GetBaseDir(), "result")
+	return GetMetadataUsecaseDir("result")
 }
 func GetLogsDir() string {
-	return filepath.Join(GetBaseDir(), "log")
+	return GetMetadataUsecaseDir("log")
 }
 
 func GetFileName() (string, string) {

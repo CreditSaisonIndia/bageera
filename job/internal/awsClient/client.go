@@ -123,3 +123,13 @@ func GetS3Client() (*s3.S3, error) {
 	}
 	return s3.New(sess), nil
 }
+
+func SendAlertMessage(status string, message string) {
+	baseAlert := model.BaseAlert{
+		FileName: serviceConfig.ApplicationSetting.FileName,
+		Lpc:      serviceConfig.ApplicationSetting.Lpc,
+		Status:   status,
+		Message:  message,
+	}
+	Publish(baseAlert, serviceConfig.ApplicationSetting.AlertSnsArn)
+}
