@@ -2,7 +2,6 @@ package producer
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -12,7 +11,9 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/consumer"
-	"github.com/CreditSaisonIndia/bageera/internal/model"
+	"github.com/CreditSaisonIndia/bageera/internal/reader"
+	readerIml "github.com/CreditSaisonIndia/bageera/internal/reader/readerImpl"
+	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 )
 
 var maxProducerGoroutines = 15
@@ -46,10 +47,13 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	// Read the CSV file and send chunks to the channel
 	header, err := csvReader.Read()
 	if err != nil {
-		LOGGER.Error("Headers", header)
+		LOGGER.Error("Headers", header, err)
 	}
 
-	offers, err := ReadOffers(csvReader)
+	offerReader := getReaderType(csvReader)
+	offerReader.SetHeader(header)
+
+	offers, err := offerReader.Read(csvReader)
 	if err == io.EOF {
 		LOGGER.Error("Reached End of the file with overall size of : ", len(offers))
 	} else if err != nil {
@@ -61,11 +65,9 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 
 	s := fmt.Sprintf(filePath+" |  Chunk size %v", len(offers))
 	LOGGER.Info(s)
-	LOGGER.Info("Chunk 1st parnterLoanId   " + offers[0].PartnerLoanID)
-	LOGGER.Info("Chunk Last parnterLoanId   " + offers[len(offers)-1].PartnerLoanID)
 	consumerWg.Add(1)
 
-	consumer.Worker(outputDir, fileName, offers, consumerWg)
+	consumer.Worker(outputDir, fileName, offers, consumerWg, header)
 
 	LOGGER.Info("Producer finished : ", filePath)
 	<-ProducerConcurrencyCh
@@ -73,39 +75,55 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	// (you can replace this with your own logic)
 }
 
-func ReadOffers(r *csv.Reader) ([]model.Offer, error) {
-	LOGGER := customLogger.GetLogger()
-	var offers []model.Offer
+// func ReadOffers(r *csv.Reader) ([]model.BaseOffer, error) {
+//     LOGGER := customLogger.GetLogger()
+//     var baseOfferArr []model.BaseOffer
 
-	for {
-		record, err := r.Read()
+//     for {
+//         record, err := r.Read()
+//         if err == io.EOF {
+//             break
+//         } else if err != nil {
+//             return nil, err
+//         }
 
-		//for index, value := range record {
-		//      fmt.Printf("Index: %d, Value: %s\n", index, value)
-		//}
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
+//         var offerDetails []model.OfferDetail
+//         if err := json.Unmarshal([]byte(record[1]), &offerDetails); err != nil {
+//             LOGGER.Error(err)
+//             return nil, err
+//         }
 
-		//// Sanitize the "offer_details" field by escaping double quotes
-		//sanitizedJSON := strings.Replace(record[1], `"`, `\"`, -1)
-		////
-		//LOGGER.Info(sanitizedJSON)
-		// Parse the sanitized "offer_details" field as JSON
-		var offerDetails []model.OfferDetail
-		if err := json.Unmarshal([]byte(record[1]), &offerDetails); err != nil {
-			LOGGER.Error(err)
-			return nil, err
-		}
-		offer := model.Offer{
-			PartnerLoanID: record[0],
-			OfferDetails:  offerDetails,
-		}
+//         multiOffer := model.MultiOffer{
+//             OfferDetails: offerDetails,
+//         }
 
-		offers = append(offers, offer)
+//         baseOffer := model.BaseOffer{
+//             PartnerLoanId: record[0],
+//             MultiOffer:    multiOffer,
+//         }
+
+//         baseOfferArr = append(baseOfferArr, baseOffer)
+//     }
+
+//     return baseOfferArr, nil
+// }
+
+func getReaderType(csvReader *csv.Reader) *reader.Reader {
+
+	switch serviceConfig.ApplicationSetting.Lpc {
+	case "PSB", "ONL":
+		psbOfferCsvReader := &readerIml.PsbOfferCsvReader{}
+
+		return reader.SetReader(psbOfferCsvReader)
+
+	case "GRO", "ANG":
+		groCsvOfferReader := &readerIml.GroCsvOfferReader{}
+
+		return reader.SetReader(groCsvOfferReader)
+
+	default:
+		singleOfferReader := &readerIml.SingleOfferReader{}
+
+		return reader.SetReader(singleOfferReader)
 	}
-
-	return offers, nil
 }
