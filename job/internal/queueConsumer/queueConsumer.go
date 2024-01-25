@@ -224,7 +224,7 @@ func Consume() error {
 				Port:        5432, // Adjust the port as needed
 				User:        serviceConfig.DatabaseSetting.User,
 				Password:    serviceConfig.DatabaseSetting.Password,
-				SSLMode:     "require", // Adjust the SSL mode as needed
+				SSLMode:     serviceConfig.DatabaseSetting.SslMode, // Adjust the SSL mode as needed
 				Name:        serviceConfig.DatabaseSetting.Name,
 				MinConn:     5,
 				MaxConn:     20,
@@ -232,7 +232,9 @@ func Consume() error {
 				IdleTime:    "5m",
 				LogLevel:    "info", // Adjust the log level as needed
 				Region:      os.Getenv("region"),
-				IAMRoleAuth: true, // Set to true if you want to use IAM role authentication
+				IAMRoleAuth: false, // Set to true if you want to use IAM role authentication
+				Env:         os.Getenv("environment"),
+				SearchPath:  serviceConfig.DatabaseSetting.TablePrefix,
 			}
 
 			// Get a database connection pool

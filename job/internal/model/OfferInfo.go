@@ -7,6 +7,7 @@ type OfferInfo struct {
 	MinTenure          int     `json:"min_tenure"`
 	PF                 float64 `json:"pf"`
 	CreditLimit        float64 `json:"credit_limit"`
+	LimitAmount        float64 `json:"limit_amount"`
 	ROI                string  `json:"roi"`
 	OfferID            string  `json:"offer_id"`
 }
