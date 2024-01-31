@@ -13,6 +13,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
+	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 
 	"github.com/go-playground/validator/v10"
@@ -24,19 +25,22 @@ type OfferInfo struct {
 	MaxTenure          int     `json:"max_tenure" validate:"required"`
 	MinTenure          int     `json:"min_tenure" validate:"required"`
 	PF                 float64 `json:"pf" validate:"required"`
-	CreditLimit        float64 `json:"credit_limit" validate:"required"`
+	CreditLimit        float64 `json:"credit_limit" validate:"ValidCreditLimit"`
+	LimitAmount        float64 `json:"limit_amount" validate:"ValidLimitAmount"`
 	OfferID            string  `json:"offer_id" validate:"required"`
 	ROI                string  `json:"roi" validate:"required"`
 }
 
 type OfferDetail struct {
 	Offers            []*OfferInfo `json:"offers" validate:"required,dive,required"`
-	DateOfOffer       string       `json:"date_of_offer" validate:"required"`
-	ExpiryDateOfOffer string       `json:"expiry_date_of_offer" validate:"required"`
+	DateOfOffer       string       `json:"date_of_offer" validate:"required,IsValidDate"`
+	ExpiryDateOfOffer string       `json:"expiry_date_of_offer" validate:"required,IsValidDate"`
 	DedupeString      string       `json:"dedupe_string" validate:"required"`
 }
 
-func isValidDate(fl validator.FieldLevel) bool {
+var LPC = serviceConfig.ApplicationSetting.Lpc
+
+func IsValidDate(fl validator.FieldLevel) bool {
 	dateString := fl.Field().String()
 	// Define the expected date layout
 	layout := "2006-01-02"
@@ -46,6 +50,22 @@ func isValidDate(fl validator.FieldLevel) bool {
 
 	// Check if there was an error during parsing
 	return err == nil
+}
+
+func ValidLimitAmount(fl validator.FieldLevel) bool {
+	LimitAmount := fl.Field().Float()
+	if LPC == "PSB" {
+		return LimitAmount == 0.0
+	}
+	return LimitAmount != 0.0
+}
+
+func ValidCreditLimit(fl validator.FieldLevel) bool {
+	CreditLimit := fl.Field().Float()
+	if LPC == "PSB" {
+		return CreditLimit != 0.0
+	}
+	return CreditLimit == 0.0
 }
 
 // Validation for each row
@@ -77,7 +97,9 @@ func validateRow(row []string) (isValid bool, remarks string) {
 	}
 
 	validate := validator.New()
-	validate.RegisterValidation("isValidDate", isValidDate)
+	validate.RegisterValidation("IsValidDate", IsValidDate)
+	validate.RegisterValidation("ValidLimitAmount", ValidLimitAmount)
+	validate.RegisterValidation("ValidCreditLimit", ValidCreditLimit)
 	err := validate.Struct(offerDetails[0])
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
