@@ -8,7 +8,11 @@ RUN apt-get update && apt-get install -y \
     golang \
     python3 \
     python3-pip \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install awscli
 
 # Start Nginx
 CMD ["nginx", "-g", "daemon off;"]

@@ -48,9 +48,9 @@ func isValidDate(fl validator.FieldLevel) bool {
 	return err == nil
 }
 
-// Validation logic, replace this with your own validation criteria
+// Validation for each row
 func validateRow(row []string) (isValid bool, remarks string) {
-	// Validate Number of fields in each row
+	// Validate Number of fields in each row to be 2
 	var remarks_list []string
 	if len(row) != 2 {
 		return false, "Invalid number of fields present in the row"
@@ -71,6 +71,7 @@ func validateRow(row []string) (isValid bool, remarks string) {
 		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
 		return len(remarks_list) == 0, strings.Join(remarks_list, ";")
 	}
+	// Validation for multiple elements in the root list
 	if len(offerDetails) != 1 {
 		return false, "Invalid Number of elements at the root list"
 	}
@@ -87,10 +88,13 @@ func validateRow(row []string) (isValid bool, remarks string) {
 	return len(remarks_list) == 0, strings.Join(remarks_list, ";")
 }
 
+// Header validation
 func validateHeader(headers []string) error {
+	// validate 2 columns are present in the header
 	if len(headers) != 2 {
 		return fmt.Errorf("invalid headers length")
 	}
+	// Check if the present 2 columns are partner_loan_id and offer_details
 	if headers[0] != "partner_loan_id" {
 		return fmt.Errorf("invalid header column - %s", headers[0])
 	}
@@ -179,7 +183,6 @@ func Validate(filePath string) (bool, error) {
 
 	LOGGER.Debug("**********Headers are written**********")
 
-	// Feed input rows to the workers through the input channel
 	for {
 		row, err := reader.Read()
 		if err != nil {
@@ -215,7 +218,7 @@ func Validate(filePath string) (bool, error) {
 	endTime := time.Now()
 	elapsedTime := endTime.Sub(startTime)
 	elapsedMinutes := elapsedTime.Minutes()
-	LOGGER.Info("Time taken: %.2f minutes\n", elapsedMinutes)
+	LOGGER.Info(fmt.Sprintf("Time taken: %.2f minutes\n", elapsedMinutes))
 
 	if !anyValidRow {
 		awsClient.SendAlertMessage("FAILED", "No valid rows found")

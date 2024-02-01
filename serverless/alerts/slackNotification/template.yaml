@@ -28,16 +28,6 @@ Resources:
       Policies:
       - AWSLambdaBasicExecutionRole
       - AmazonSNSFullAccess
-      - Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Action:
-              - secretsmanager:GetSecretValue
-            Resource:
-              - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/secret/antman-*'
-              - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/secret/antman/*'
-              - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/secret/application-*'
-              - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/secret/antman'
       Environment:
         Variables:
           PQ_WHITELISTING_ALERTS_SLACK_WEBHOOK_URL: !Ref AlertsSlackWebhookUrl
