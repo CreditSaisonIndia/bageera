@@ -19,7 +19,7 @@ func UploadDriver(ctx context.Context, s3 multipartUpload.S3, filePath string) e
 	file, err := os.Open(filePath)
 	defer file.Close()
 	if err != nil {
-		LOGGER.Error("Error while opening invalid file ")
+		LOGGER.Error("Error while opening invalid file : ", err)
 		return err
 	}
 
@@ -31,6 +31,7 @@ func UploadDriver(ctx context.Context, s3 multipartUpload.S3, filePath string) e
 		Bucket:   serviceConfig.ApplicationSetting.BucketName,
 	})
 	if err != nil {
+		LOGGER.Error("Error while creating multipert client : ", err)
 		return err
 	}
 	defer up.Abort()
@@ -40,16 +41,19 @@ func UploadDriver(ctx context.Context, s3 multipartUpload.S3, filePath string) e
 	for scanner.Scan() {
 		err := up.Write(scanner.Text() + "\n")
 		if err != nil {
+			LOGGER.Error("Error while up.Write : ", err)
 			return err
 		}
 	}
 	if err := scanner.Err(); err != nil {
+		LOGGER.Error("Error while scanner.Err : ", err)
 		return err
 	}
 
 	// Upload (flush) any remaining parts
 	tot, err := up.Flush(ctx)
 	if err != nil {
+		LOGGER.Error("Error while up.Flush : ", err)
 		return err
 	}
 
