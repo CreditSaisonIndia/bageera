@@ -23,7 +23,7 @@ func (m *GroCsvOfferReader) SetHeader(header []string) {
 }
 
 // Read implements reader.OfferReader.
-func (*GroCsvOfferReader) Read(csvReader *csv.Reader) ([]model.BaseOffer, error) {
+func (*GroCsvOfferReader) Read(csvReader *csv.Reader) (*[]model.BaseOffer, error) {
 	LOGGER := customLogger.GetLogger()
 	var baseOfferArr []model.BaseOffer
 
@@ -57,5 +57,5 @@ func (*GroCsvOfferReader) Read(csvReader *csv.Reader) ([]model.BaseOffer, error)
 	LOGGER.Info("Chunk 1st parnterLoanId -->>  ", baseOfferArr[0].(*model.GroSingleCsvOffer).SingleCsvOffer.PartnerLoanId)
 	LOGGER.Info("Chunk Last parnterLoanId -->>  " + baseOfferArr[len(baseOfferArr)-1].(*model.GroSingleCsvOffer).SingleCsvOffer.PartnerLoanId)
 
-	return baseOfferArr, nil
+	return &baseOfferArr, nil
 }

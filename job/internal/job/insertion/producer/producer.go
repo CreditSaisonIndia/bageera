@@ -53,9 +53,10 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	offerReader := getReaderType(csvReader)
 	offerReader.SetHeader(header)
 
-	offers, err := offerReader.Read(csvReader)
+	offersPointer, err := offerReader.ReaderStrategy(csvReader)
+	offerLength := len(*offersPointer)
 	if err == io.EOF {
-		LOGGER.Error("Reached End of the file with overall size of : ", len(offers))
+		LOGGER.Error("Reached End of the file with overall size of : ", offerLength)
 	} else if err != nil {
 		LOGGER.Error("Error while reading fileName: : ", fileName, err)
 		LOGGER.Error("Producer finished : ", filePath)
@@ -63,50 +64,16 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 		return
 	}
 
-	s := fmt.Sprintf(filePath+" |  Chunk size %v", len(offers))
+	s := fmt.Sprintf(filePath+" |  Chunk size %v", offerLength)
 	LOGGER.Info(s)
 	consumerWg.Add(1)
 
-	consumer.Worker(outputDir, fileName, offers, consumerWg, header)
+	consumer.Worker(outputDir, fileName, offersPointer, consumerWg, header)
 
 	LOGGER.Info("Producer finished : ", filePath)
 	<-ProducerConcurrencyCh
-	// Process the data in the producer if needed
-	// (you can replace this with your own logic)
+
 }
-
-// func ReadOffers(r *csv.Reader) ([]model.BaseOffer, error) {
-//     LOGGER := customLogger.GetLogger()
-//     var baseOfferArr []model.BaseOffer
-
-//     for {
-//         record, err := r.Read()
-//         if err == io.EOF {
-//             break
-//         } else if err != nil {
-//             return nil, err
-//         }
-
-//         var offerDetails []model.OfferDetail
-//         if err := json.Unmarshal([]byte(record[1]), &offerDetails); err != nil {
-//             LOGGER.Error(err)
-//             return nil, err
-//         }
-
-//         multiOffer := model.MultiOffer{
-//             OfferDetails: offerDetails,
-//         }
-
-//         baseOffer := model.BaseOffer{
-//             PartnerLoanId: record[0],
-//             MultiOffer:    multiOffer,
-//         }
-
-//         baseOfferArr = append(baseOfferArr, baseOffer)
-//     }
-
-//     return baseOfferArr, nil
-// }
 
 func getReaderType(csvReader *csv.Reader) *reader.Reader {
 

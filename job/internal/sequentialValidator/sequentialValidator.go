@@ -164,11 +164,11 @@ func Validate(filePath string) (bool, error) {
 		return false, err
 	}
 
-	// err = validateHeader(header)
-	// if err != nil {
-	// 	LOGGER.Error("invalid headers:", err)
-	// 	return false, err
-	// }
+	err = validateHeader(header)
+	if err != nil {
+		LOGGER.Error("invalid headers:", err)
+		return false, err
+	}
 
 	err = validWriter.Write(header)
 	if err != nil {
@@ -194,8 +194,8 @@ func Validate(filePath string) (bool, error) {
 			}
 			break
 		}
-		_, remarks := validateRow(row)
-		if true {
+		isValid, remarks := validateRow(row)
+		if isValid {
 			writeToFile(validWriter, row)
 			if !anyValidRow {
 				anyValidRow = !anyValidRow

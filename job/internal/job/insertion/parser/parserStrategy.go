@@ -14,10 +14,10 @@ type ParserStrategy interface {
 	/*
 		parse the BaseOffer to Database Initial Offer model
 	*/
-	Parse(baseOffer model.BaseOffer) (model.InitialOffer, error)
+	Parse(baseOffer *model.BaseOffer) (*model.InitialOffer, error)
 
 	/*
 		Writes the BaseOffer to a given csv writer
 	*/
-	WriteOfferToCsv(csvWriter *csv.Writer, baseOffer model.BaseOffer)
+	WriteOfferToCsv(csvWriter *csv.Writer, baseOffer *model.BaseOffer)
 }

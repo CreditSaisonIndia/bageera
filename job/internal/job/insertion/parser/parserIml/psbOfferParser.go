@@ -7,15 +7,15 @@ import (
 
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/model"
-	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/jinzhu/gorm/dialects/postgres"
 )
 
 type PsbOfferParser struct{}
 
 // WriteOfferToCsv implements parser.Parser.
-func (*PsbOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOffer model.BaseOffer) {
+func (*PsbOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOfferPointer *model.BaseOffer) {
 	LOGGER := customLogger.GetLogger()
+	baseOffer := *baseOfferPointer
 	offerDetailsString, err := json.Marshal(baseOffer.(*model.MultiCsvOffer).OfferDetails)
 	if err != nil {
 		LOGGER.Error("Error while marshalling offer details while writing files to failure/success Csv:", err)
@@ -32,13 +32,14 @@ func (*PsbOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOffer model.Ba
 // GetFileHeader implements parser.Parser.
 
 // parse implements parser.Parser.
-func (*PsbOfferParser) Parse(baseOffer model.BaseOffer) (model.InitialOffer, error) {
+func (*PsbOfferParser) Parse(baseOfferPointer *model.BaseOffer) (*model.InitialOffer, error) {
 	LOGGER := customLogger.GetLogger()
 	var proddbInitialOffer model.InitialOffer
+	baseOffer := *baseOfferPointer
 	expiryDateOfOffer, rawSection, err := getSection(baseOffer.(*model.MultiCsvOffer).OfferDetails)
 	if err != nil {
 		LOGGER.Info("Error While forming marshalling section with following error : ", err)
-		return proddbInitialOffer, err
+		return &proddbInitialOffer, err
 	}
 	proddbInitialOffer = model.InitialOffer{
 		// Set other fields based on your requirements
@@ -55,7 +56,7 @@ func (*PsbOfferParser) Parse(baseOffer model.BaseOffer) (model.InitialOffer, err
 		// Set other fields as needed
 	}
 
-	return proddbInitialOffer, nil
+	return &proddbInitialOffer, nil
 }
 
 func getSection(offers []model.OfferDetail) (time.Time, []byte, error) {
@@ -68,7 +69,7 @@ func getSection(offers []model.OfferDetail) (time.Time, []byte, error) {
 		var internalOfferArray = resp.Offers
 
 		for _, internalOffer := range internalOfferArray {
-			println(utils.PrettyPrint(internalOffer))
+
 			section := model.OfferSection{
 				ID:                 internalOffer.OfferID,
 				Interest:           internalOffer.ROI,

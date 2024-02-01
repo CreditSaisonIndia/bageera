@@ -1,0 +1,59 @@
+package awsClient
+
+import (
+	"bufio"
+	"context"
+	"os"
+	"path/filepath"
+
+	"github.com/CreditSaisonIndia/bageera/internal/awsClient/multipartUpload"
+	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
+	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
+)
+
+func UploadDriver(ctx context.Context, s3 multipartUpload.S3, filePath string) error {
+
+	LOGGER := customLogger.GetLogger()
+	// Dummy data fixtures
+
+	file, err := os.Open(filePath)
+	defer file.Close()
+	if err != nil {
+		LOGGER.Error("Error while opening invalid file ")
+		return err
+	}
+
+	// Multipart uploader instance
+	up, err := s3.CreateMultipartUpload(ctx, multipartUpload.MultipartUploadConfig{
+		Key:      filePath,
+		Filename: filepath.Base(filePath),
+		Mime:     "text/plain",
+		Bucket:   serviceConfig.ApplicationSetting.BucketName,
+	})
+	if err != nil {
+		return err
+	}
+	defer up.Abort()
+
+	// Read fixtures line by line and upload
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		err := up.Write(scanner.Text() + "\n")
+		if err != nil {
+			return err
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	// Upload (flush) any remaining parts
+	tot, err := up.Flush(ctx)
+	if err != nil {
+		return err
+	}
+
+	LOGGER.Info("uploaded parts:", tot)
+
+	return nil
+}

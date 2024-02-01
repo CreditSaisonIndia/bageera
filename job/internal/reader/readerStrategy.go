@@ -7,7 +7,7 @@ import (
 )
 
 type ReaderStrategy interface {
-	Read(*csv.Reader) ([]model.BaseOffer, error)
+	Read(*csv.Reader) (*[]model.BaseOffer, error)
 	SetHeader(header []string)
 	GetHeader() []string
 }

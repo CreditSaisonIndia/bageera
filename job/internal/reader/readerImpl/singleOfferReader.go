@@ -6,7 +6,6 @@ import (
 
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/model"
-	"github.com/CreditSaisonIndia/bageera/internal/reader"
 )
 
 type SingleOfferReader struct {
@@ -24,7 +23,7 @@ func (m *SingleOfferReader) SetHeader(header []string) {
 }
 
 // Read implements reader.OfferReader.
-func (*SingleOfferReader) Read(csvReader *csv.Reader) ([]model.BaseOffer, error) {
+func (*SingleOfferReader) Read(csvReader *csv.Reader) (*[]model.BaseOffer, error) {
 	LOGGER := customLogger.GetLogger()
 	var baseOfferArr []model.BaseOffer
 
@@ -53,9 +52,5 @@ func (*SingleOfferReader) Read(csvReader *csv.Reader) ([]model.BaseOffer, error)
 	LOGGER.Info("Chunk 1st parnterLoanId -->>  ", baseOfferArr[0].(model.SingleCsvOffer).PartnerLoanId)
 	LOGGER.Info("Chunk Last parnterLoanId -->>  " + baseOfferArr[len(baseOfferArr)-1].(model.SingleCsvOffer).PartnerLoanId)
 
-	return baseOfferArr, nil
-}
-
-func GertSingleOfferReaderInstance() reader.ReaderStrategy {
-	return &SingleOfferReader{}
+	return &baseOfferArr, nil
 }

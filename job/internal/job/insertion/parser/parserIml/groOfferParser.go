@@ -14,8 +14,9 @@ import (
 type GroOfferParser struct{}
 
 // WriteOfferToCsv implements parser.Parser.
-func (*GroOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOffer model.BaseOffer) {
+func (*GroOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOfferPointer *model.BaseOffer) {
 	LOGGER := customLogger.GetLogger()
+	baseOffer := *baseOfferPointer
 	row := []string{
 		baseOffer.(*model.GroSingleCsvOffer).PartnerLoanId,
 		baseOffer.(*model.GroSingleCsvOffer).OfferId,
@@ -35,13 +36,14 @@ func (*GroOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOffer model.Ba
 }
 
 // Parse implements parser.Parser.
-func (*GroOfferParser) Parse(baseOffer model.BaseOffer) (model.InitialOffer, error) {
+func (*GroOfferParser) Parse(baseOfferPointer *model.BaseOffer) (*model.InitialOffer, error) {
 	LOGGER := customLogger.GetLogger()
 	var proddbInitialOffer model.InitialOffer
+	baseOffer := *baseOfferPointer
 	expiryDateOfOffer, rawSection, err := getGroSectionForSingleOffer(baseOffer)
 	if err != nil {
 		LOGGER.Info("Error While forming marshalling section with following error : ", err)
-		return proddbInitialOffer, err
+		return &proddbInitialOffer, err
 	}
 	proddbInitialOffer = model.InitialOffer{
 		// Set other fields based on your requirements
@@ -58,7 +60,7 @@ func (*GroOfferParser) Parse(baseOffer model.BaseOffer) (model.InitialOffer, err
 		// Set other fields as needed
 	}
 
-	return proddbInitialOffer, nil
+	return &proddbInitialOffer, nil
 }
 
 func getGroSectionForSingleOffer(offer model.BaseOffer) (time.Time, []byte, error) {

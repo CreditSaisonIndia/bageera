@@ -16,10 +16,10 @@ func SetParser(parserStrategy ParserStrategy) *Parser {
 	}
 }
 
-func (p *Parser) Parse(baseOffer model.BaseOffer) (model.InitialOffer, error) {
+func (p *Parser) ParserStrategy(baseOffer *model.BaseOffer) (*model.InitialOffer, error) {
 	return p.parserStrategy.Parse(baseOffer)
 }
 
-func (p *Parser) WriteOfferToCsv(csvWriter *csv.Writer, baseOffer model.BaseOffer) {
+func (p *Parser) WriteOfferToCsv(csvWriter *csv.Writer, baseOffer *model.BaseOffer) {
 	p.parserStrategy.WriteOfferToCsv(csvWriter, baseOffer)
 }

@@ -16,7 +16,7 @@ func SetReader(readerStrategy ReaderStrategy) *Reader {
 	}
 }
 
-func (r *Reader) Read(csvReader *csv.Reader) ([]model.BaseOffer, error) {
+func (r *Reader) ReaderStrategy(csvReader *csv.Reader) (*[]model.BaseOffer, error) {
 	return r.readerStrategy.Read(csvReader)
 }
 

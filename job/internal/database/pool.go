@@ -34,16 +34,11 @@ type cachedCredentials struct {
 
 type DBConfig struct {
 	Host        string
-	Port        int
+	Port        string
 	User        string
 	Password    string
 	SSLMode     string
 	Name        string
-	MinConn     int
-	MaxConn     int
-	LifeTime    string
-	IdleTime    string
-	LogLevel    string
 	Region      string
 	IAMRoleAuth bool
 	Env         string
@@ -85,7 +80,7 @@ func (p *Peer) GetDBPool(ctx context.Context, cfg DBConfig, sess *session.Sessio
 	poolCfg.MaxConns = 20
 	poolCfg.MinConns = 5
 
-	if cfg.IAMRoleAuth {
+	if cfg.Env != "local" {
 		poolCfg.BeforeConnect = func(ctx context.Context, config *pgx.ConnConfig) error {
 			// p.Mu.Unlock()
 			// defer p.Mu.Unlock()
@@ -161,6 +156,6 @@ func (p *Peer) getCredential(poolCfg *pgxpool.Config, cfg DBConfig, sess *sessio
 }
 
 func getDBURL(cfg DBConfig) string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s&search_path=scarlet",
-		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.SSLMode)
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=%s",
+		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.SSLMode, cfg.SearchPath)
 }

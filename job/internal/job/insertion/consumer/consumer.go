@@ -17,15 +17,14 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/parser/parserIml"
 	"github.com/CreditSaisonIndia/bageera/internal/model"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
-	"github.com/lib/pq"
 )
 
 var maxConsumerGoroutines = 15
 var ConsumerConcurrencyCh = make(chan struct{}, maxConsumerGoroutines)
 
-func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGroup *sync.WaitGroup, header []string) {
+func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consumerWaitGroup *sync.WaitGroup, header []string) {
 	LOGGER := customLogger.GetLogger()
-	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(offers)))
+	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(*offersPointer)))
 	defer consumerWaitGroup.Done()
 	ConsumerConcurrencyCh <- struct{}{}
 
@@ -87,13 +86,13 @@ func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGro
 	col := []string{"created_at", "is_active", "is_deleted", "updated_at", "app_form_id", "partner_loan_id",
 		"status", "offer_sections", "description", "remarks", "attempt", "expiry_date_of_offer"}
 
-	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(offers)))
 	chunkSize := 2000
 	chunkNumber := 0
 
 	// ... (existing code)
-
-	for i := 0; i < len(offers); i += chunkSize {
+	offersLength := len(*offersPointer)
+	offers := *offersPointer
+	for i := 0; i < offersLength; i += chunkSize {
 		chunkNumber++
 		var (
 			placeholders []string
@@ -101,19 +100,19 @@ func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGro
 		)
 
 		chunkEnd := i + chunkSize
-		if chunkEnd > len(offers) {
-			chunkEnd = len(offers)
+		if chunkEnd > offersLength {
+			chunkEnd = offersLength
 		}
 
 		chunk := offers[i:chunkEnd]
 
-		//var proddbOffers []model.InitialOffer
+		//var proddboffersPointer []model.InitialOffer
 		for index, offer := range chunk {
 
-			proddbOffer, err := parser.Parse(offer)
+			proddbOffer, err := parser.ParserStrategy(&offer)
 			if err != nil {
 				LOGGER.Error("Error converting offer:", err)
-				parser.WriteOfferToCsv(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 				continue
 			}
 
@@ -141,19 +140,20 @@ func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGro
 
 		// Construct the SQL query
 		// Construct the SQL query with ON CONFLICT
-		query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s ON CONFLICT (partner_loan_id) DO UPDATE SET "+
-			"updated_at = EXCLUDED.updated_at, "+
-			"offer_sections = EXCLUDED.offer_sections,"+
-			"attempt = EXCLUDED.attempt,expiry_date_of_offer = EXCLUDED.expiry_date_of_offer",
-			strings.Join(col, ", "), strings.Join(placeholders, ","))
+		// query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s ON CONFLICT (partner_loan_id) DO UPDATE SET "+
+		// 	"updated_at = EXCLUDED.updated_at, "+
+		// 	"offer_sections = EXCLUDED.offer_sections,"+
+		// 	"attempt = EXCLUDED.attempt,expiry_date_of_offer = EXCLUDED.expiry_date_of_offer",
+		// 	strings.Join(col, ", "), strings.Join(placeholders, ","))
+		query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s", strings.Join(col, ", "), strings.Join(placeholders, ","))
 
 		LOGGER.Info("Worker : " + fileName + "--->>>> GETTTING DB")
 		// Now you can use the pool to get a database connection
 		conn, err := database.GetPgxPool().Acquire(context.Background())
 		if err != nil {
-			LOGGER.Error("Error : Worker : "+fileName+" ------>  accquire ", err)
+			LOGGER.Error("Error Worker : "+fileName+" ------>  accquire ", err)
 			for _, offer := range chunk {
-				parser.WriteOfferToCsv(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 			}
 			<-ConsumerConcurrencyCh
 			return
@@ -163,7 +163,7 @@ func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGro
 		if err != nil {
 			LOGGER.Error("Error : Worker : "+fileName+"------> conn.Begin(context.Background()) ", err)
 			for _, offer := range chunk {
-				parser.WriteOfferToCsv(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 			}
 			<-ConsumerConcurrencyCh
 			return
@@ -174,7 +174,7 @@ func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGro
 			LOGGER.Error("Error : Worker : "+fileName+" ------> tx.Exe ", err)
 			tx.Rollback(context.Background())
 			for _, offer := range chunk {
-				parser.WriteOfferToCsv(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 			}
 			<-ConsumerConcurrencyCh
 			return
@@ -186,7 +186,7 @@ func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGro
 			LOGGER.Info("Error : ------>  committing transaction:", err)
 			tx.Rollback(context.Background())
 			for _, offer := range chunk {
-				parser.WriteOfferToCsv(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 			}
 			<-ConsumerConcurrencyCh
 			return
@@ -196,7 +196,7 @@ func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGro
 		LOGGER.Info("fileName : ", chunkFileNameWithoutExtension, "---->>>>>>CHUNK NUMBER : ", chunkNumber)
 
 		for _, offer := range chunk {
-			parser.WriteOfferToCsv(successWriter, offer)
+			parser.WriteOfferToCsv(successWriter, &offer)
 		}
 		LOGGER.Info("------------RELEASING CONNECTION--------------")
 		conn.Release()
@@ -209,31 +209,18 @@ func Worker(filePath, fileName string, offers []model.BaseOffer, consumerWaitGro
 	<-ConsumerConcurrencyCh
 }
 
-func convertToInterfaceSlice(slice []interface{}) []interface{} {
-	result := make([]interface{}, len(slice))
-	for i, v := range slice {
-		switch val := v.(type) {
-		case bool:
-			result[i] = pq.BoolArray{val}
-		default:
-			result[i] = v
-		}
-	}
-	return result
-}
-
-func getParserType() parser.Parser {
+func getParserType() *parser.Parser {
 
 	switch serviceConfig.ApplicationSetting.Lpc {
 	case "PSB", "ONL":
 		psbOfferParser := &parserIml.PsbOfferParser{}
-		return *parser.SetParser(psbOfferParser)
-	case "GRO","ANG":
+		return parser.SetParser(psbOfferParser)
+	case "GRO", "ANG":
 		groOfferParser := &parserIml.GroOfferParser{}
-		return *parser.SetParser(groOfferParser)
+		return parser.SetParser(groOfferParser)
 
 	default:
 		singleOfferParser := &parserIml.SingleOfferParser{}
-		return *parser.SetParser(singleOfferParser)
+		return parser.SetParser(singleOfferParser)
 	}
 }

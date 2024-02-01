@@ -4,11 +4,9 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"io"
-	"log"
 
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/model"
-	"github.com/CreditSaisonIndia/bageera/internal/utils"
 )
 
 type PsbOfferCsvReader struct {
@@ -25,7 +23,7 @@ func (m *PsbOfferCsvReader) SetHeader(header []string) {
 	m.header = []string{"partner_loan_id", "offer_details"}
 }
 
-func (r *PsbOfferCsvReader) Read(csvReader *csv.Reader) ([]model.BaseOffer, error) {
+func (r *PsbOfferCsvReader) Read(csvReader *csv.Reader) (*[]model.BaseOffer, error) {
 	LOGGER := customLogger.GetLogger()
 	var baseOfferArr []model.BaseOffer
 
@@ -50,9 +48,8 @@ func (r *PsbOfferCsvReader) Read(csvReader *csv.Reader) ([]model.BaseOffer, erro
 
 		baseOfferArr = append(baseOfferArr, &multiCsvOffer)
 	}
-	log.Println(utils.PrettyPrint(baseOfferArr))
 	LOGGER.Info("Chunk 1st parnterLoanId -->>  ", baseOfferArr[0].(*model.MultiCsvOffer).PartnerLoanId)
 	LOGGER.Info("Chunk Last parnterLoanId -->>  " + baseOfferArr[len(baseOfferArr)-1].(*model.MultiCsvOffer).PartnerLoanId)
 
-	return baseOfferArr, nil
+	return &baseOfferArr, nil
 }

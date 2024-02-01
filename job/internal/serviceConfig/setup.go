@@ -20,6 +20,7 @@ type Application struct {
 	BucketName       string
 	ObjectKey        string
 	InvalidObjectKey string
+	JobType          string
 }
 
 var ApplicationSetting = &Application{}

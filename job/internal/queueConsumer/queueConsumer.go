@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
+	"github.com/CreditSaisonIndia/bageera/internal/awsClient/multipartUpload"
 	"github.com/CreditSaisonIndia/bageera/internal/consolidation"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
+	"github.com/CreditSaisonIndia/bageera/internal/job"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion"
 	"github.com/CreditSaisonIndia/bageera/internal/sequentialValidator"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
@@ -169,21 +172,24 @@ func Consume() error {
 			allInvalidRows, err := sequentialValidator.Validate(path)
 			if err != nil {
 				serviceConfig.PrintSettings()
-				LOGGER.Error(err)
+				LOGGER.Error("Error while Validation ", err)
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("Failed while validating the CSV | Remarks - %s", err))
 				break
 			}
-			//Skipping for now Will be added in phase 2
-			// invalidGoroutinesWaitGroup := sync.WaitGroup{}
-			// uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup)
 
 			if allInvalidRows {
+				serviceConfig.PrintSettings()
 				LOGGER.Error("No valid rows present after validation")
 				awsClient.SendAlertMessage("FAILED", "No Valid rows present after validation")
-				// LOGGER.Info("Starting initialize Wait")
-				// invalidGoroutinesWaitGroup.Wait()
-				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				// LOGGER.Info("Ended initialize Wait")
+				LOGGER.Info("Starting invalid upload file Wait")
+				invalidGoroutinesWaitGroup := sync.WaitGroup{}
+				invalidGoroutinesWaitGroup.Add(1)
+				invalidBaseDir := utils.GetInvalidBaseDir()
+				fileNameWithoutExt, _ := utils.GetFileName()
+				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
+					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
 				break
 			}
 
@@ -193,10 +199,15 @@ func Consume() error {
 				serviceConfig.PrintSettings()
 				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE SPLITTING CSV - %s", err))
-				// LOGGER.Info("Starting initializeWait")
-				// invalidGoroutinesWaitGroup.Wait()
-				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				// LOGGER.Info("Ended initializeWait")
+				LOGGER.Info("Starting invalid upload file Wait")
+				invalidGoroutinesWaitGroup := sync.WaitGroup{}
+				invalidGoroutinesWaitGroup.Add(1)
+				invalidBaseDir := utils.GetInvalidBaseDir()
+				fileNameWithoutExt, _ := utils.GetFileName()
+				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
+					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
 				break
 			}
 
@@ -221,18 +232,13 @@ func Consume() error {
 			// Define your database configuration
 			cfg := database.DBConfig{
 				Host:        serviceConfig.DatabaseSetting.MasterDbHost,
-				Port:        5432, // Adjust the port as needed
+				Port:        serviceConfig.DatabaseSetting.Port, // Adjust the port as needed
 				User:        serviceConfig.DatabaseSetting.User,
 				Password:    serviceConfig.DatabaseSetting.Password,
 				SSLMode:     serviceConfig.DatabaseSetting.SslMode, // Adjust the SSL mode as needed
 				Name:        serviceConfig.DatabaseSetting.Name,
-				MinConn:     5,
-				MaxConn:     20,
-				LifeTime:    "14m",
-				IdleTime:    "5m",
-				LogLevel:    "info", // Adjust the log level as needed
 				Region:      os.Getenv("region"),
-				IAMRoleAuth: false, // Set to true if you want to use IAM role authentication
+				IAMRoleAuth: true, // Set to true if you want to use IAM role authentication
 				Env:         os.Getenv("environment"),
 				SearchPath:  serviceConfig.DatabaseSetting.TablePrefix,
 			}
@@ -243,26 +249,38 @@ func Consume() error {
 				LOGGER.Error("ERROR WHILE INITIALIZING DB POOL : ", err)
 				serviceConfig.PrintSettings()
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE INITIALIZING DB POOL - %s", err))
-				// LOGGER.Info("Starting initializeWait")
-				// invalidGoroutinesWaitGroup.Wait()
-				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				// LOGGER.Info("Ended initializeWait")
+				LOGGER.Info("Starting invalid upload file Wait")
+				invalidGoroutinesWaitGroup := sync.WaitGroup{}
+				invalidGoroutinesWaitGroup.Add(1)
+				invalidBaseDir := utils.GetInvalidBaseDir()
+				fileNameWithoutExt, _ := utils.GetFileName()
+				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
+					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
 				break
 			}
 
 			// Close the pool when you're done with it
 			defer pool.Close()
-			insertion.BeginInsertion()
+
+			job := GetJob()
+			job.ExecuteStrategy(serviceConfig.ApplicationSetting.ObjectKey)
 
 			rowCountFilePath, err := consolidation.Consolidate()
 			if err != nil {
 				LOGGER.Error("ERROR WHILE CONSOLIDATION : ", err)
 				serviceConfig.PrintSettings()
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE CONSOLIDATION - %s", err))
-				// LOGGER.Info("Starting initializeWait")
-				// invalidGoroutinesWaitGroup.Wait()
-				// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-				// LOGGER.Info("Ended initializeWait")
+				LOGGER.Info("Starting invalid upload file Wait")
+				invalidGoroutinesWaitGroup := sync.WaitGroup{}
+				invalidGoroutinesWaitGroup.Add(1)
+				invalidBaseDir := utils.GetInvalidBaseDir()
+				fileNameWithoutExt, _ := utils.GetFileName()
+				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
+					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
 				break
 			}
 
@@ -272,7 +290,7 @@ func Consume() error {
 				LOGGER.Info("Validation passed for Result")
 				awsClient.SendAlertMessage("SUCCESS", "")
 			} else {
-				LOGGER.Error("Validation failed for Result : ", result.Err)
+				LOGGER.Error("Row Counts Validation failed for Result")
 				awsClient.SendAlertMessage("FAILED", "")
 			}
 
@@ -291,59 +309,52 @@ func Consume() error {
 			}(logFile)
 
 			LOGGER.Info("**********CLOSING POOL************")
-			pool.Close()
 
-			// LOGGER.Info("Starting initializeWait")
-			// invalidGoroutinesWaitGroup.Wait()
-			// LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-			// LOGGER.Info("Ended initializeWait")
+			LOGGER.Info("Starting upload invalid upload file")
+			invalidGoroutinesWaitGroup := sync.WaitGroup{}
+			invalidGoroutinesWaitGroup.Add(1)
+			invalidBaseDir := utils.GetInvalidBaseDir()
+			fileNameWithoutExt, _ := utils.GetFileName()
+			uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
+				filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+			LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+			LOGGER.Info("Ended invalid upload file")
+
+			LOGGER.Info("Starting Rowupload file")
+			invalidGoroutinesWaitGroup1 := sync.WaitGroup{}
+			invalidGoroutinesWaitGroup1.Add(1)
+			uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup1,
+				rowCountFilePath)
+			LOGGER.Info("*******ROW COUNT FILE UPLOAD CALL DONE*******")
+			LOGGER.Info("Ended Row upload file")
 		}
 	}
 	return nil
 }
 
-func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup) {
+func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup, filePath string) {
 	LOGGER := customLogger.GetLogger()
 	LOGGER.Info("*******UPLOADING INVALID FILE*******")
 
-	invalidGoroutinesWaitGroup.Add(1)
+	defer invalidGoroutinesWaitGroup.Done()
+	ctx := context.Background()
 
-	go awsClient.S3MutiPartUpload(invalidGoroutinesWaitGroup)
+	// AWS config
+	cfg, err := multipartUpload.NewConfig(ctx)
+	if err != nil {
+		LOGGER.Error(err)
+	}
+
+	// AWS S3 client
+	s3 := multipartUpload.NewS3(cfg, serviceConfig.ApplicationSetting.BucketName)
+
+	if err := awsClient.UploadDriver(ctx, s3, filePath); err != nil {
+		LOGGER.Error(err)
+	}
 }
 
 func setConfigFromSqsMessage(jsonMessage string) error {
 	LOGGER := customLogger.GetLogger()
-	//LOGGER.Info("GETTING SECRETS")
-	//
-	//// Load AWS SDK configuration
-	//cfg, err := config.LoadDefaultConfig(context.TODO())
-	//if err != nil {
-	//	LOGGER.Info("Error loading AWS SDK configuration:", err)
-	//	return
-	//}
-	//
-	//// Create a new Secrets Manager client
-	//client := secretsmanager.NewFromConfig(cfg)
-	//
-	//// Specify the ARN or name of your secret
-	//secretNameOrARN := "scarlet-db-creds"
-	//
-	//// Retrieve the secret value
-	//secretValue, err := awsClient.GetSecretValue(client, secretNameOrARN)
-	//if err != nil {
-	//	LOGGER.Info("Error retrieving secret value:", err)
-	//	return
-	//}
-	//
-	//// Unmarshal the JSON into a struct
-	//var secretData SecretData
-	//err = json.Unmarshal([]byte(secretValue), &secretData)
-	//if err != nil {
-	//	LOGGER.Info("Error unmarshaling secret data:", err)
-	//	return
-	//}
-	//
-	//LOGGER.Info("GOT SECRETS SUCCESSFULLY")
 
 	LOGGER.Info("SETTING DATA FROM QUEUE MESSAGE")
 	// Unmarshal the outer SNSNotification
@@ -376,6 +387,9 @@ func setConfigFromSqsMessage(jsonMessage string) error {
 	objectKey := s3UploadEvent.ObjectKey
 	serviceConfig.ApplicationSetting.ObjectKey = objectKey
 	serviceConfig.Set("objectKey", objectKey)
+
+	jobType := utils.GetJobTypeFromPath()
+	serviceConfig.ApplicationSetting.JobType = jobType
 
 	invalidObjectKey := utils.GetInvalidObjectKey()
 	serviceConfig.ApplicationSetting.InvalidObjectKey = invalidObjectKey
@@ -431,4 +445,24 @@ func delteMessageFromSQS(deleteParams *sqs.DeleteMessageInput, sqsClient *sqs.SQ
 		return err
 	}
 	return nil
+}
+
+func GetJob() *job.Job {
+	switch serviceConfig.ApplicationSetting.JobType {
+	case "insert":
+		var insertJob *insertion.Insertion
+		return job.SetStrategy(insertJob)
+
+	case "delete":
+		var insertJob *insertion.Insertion
+		return job.SetStrategy(insertJob)
+
+	case "update":
+		var insertJob *insertion.Insertion
+		return job.SetStrategy(insertJob)
+
+	default:
+		var insertJob *insertion.Insertion
+		return job.SetStrategy(insertJob)
+	}
 }
