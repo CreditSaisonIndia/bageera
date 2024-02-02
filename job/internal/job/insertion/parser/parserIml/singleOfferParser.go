@@ -11,6 +11,11 @@ import (
 	"github.com/jinzhu/gorm/dialects/postgres"
 )
 
+/*
+	Single offer stragey written to suppport below partners
+	INC | JAR | NBR
+*/
+
 type SingleOfferParser struct{}
 
 // WriteOfferToCsv implements parser.Parser.

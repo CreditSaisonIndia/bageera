@@ -200,7 +200,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		}
 		LOGGER.Info("------------RELEASING CONNECTION--------------")
 		conn.Release()
-		time.Sleep(10 * time.Second)
+		time.Sleep(5 * time.Second)
 		LOGGER.Info("******** WORKER ", fileName, "  | WARMING UP TO WORK ON NEXT CHUNK ---> ", chunkNumber, " ********")
 	}
 

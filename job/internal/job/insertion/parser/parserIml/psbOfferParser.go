@@ -10,6 +10,11 @@ import (
 	"github.com/jinzhu/gorm/dialects/postgres"
 )
 
+/*
+	psb stragey written to suppport below partners
+	PSB | ONL
+*/
+
 type PsbOfferParser struct{}
 
 // WriteOfferToCsv implements parser.Parser.

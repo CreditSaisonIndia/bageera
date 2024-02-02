@@ -53,6 +53,20 @@ func GetInvalidBaseDir() string {
 	return GetMetadataUsecaseDir("invalid")
 }
 
+func GetRelativeInvalidBaseDir() string {
+	return GetRelativeMetadataUsecaseDir("invalid")
+}
+
+func GetRelativeMetadataUsecaseDir(usecaseDir string) string {
+	objectKey := GetMetadataObjectKey()
+	dirPath := filepath.Dir(objectKey)
+	// Extract the fileName without extension
+	fileName := filepath.Base(objectKey)
+	fileNameWithoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]
+	return filepath.Join(dirPath, fileNameWithoutExt, usecaseDir)
+
+}
+
 func GetMetadataObjectKey() string {
 	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 
