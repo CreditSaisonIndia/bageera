@@ -11,6 +11,11 @@ import (
 	"github.com/jinzhu/gorm/dialects/postgres"
 )
 
+/*
+	Gro offer stragey written to suppport below partners
+	GRO | ANG
+*/
+
 type GroOfferParser struct{}
 
 // WriteOfferToCsv implements parser.Parser.

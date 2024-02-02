@@ -23,12 +23,12 @@ func UploadDriver(ctx context.Context, s3 multipartUpload.S3, filePath string) e
 		LOGGER.Error("Error while opening invalid file : ", err)
 		return err
 	}
-	invalidBaseDir := utils.GetInvalidBaseDir()
+	relativeInvalidBaseDir := utils.GetRelativeInvalidBaseDir()
 	// Multipart uploader instance
 	up, err := s3.CreateMultipartUpload(ctx, multipartUpload.MultipartUploadConfig{
-		Key:      filepath.Join(invalidBaseDir, filepath.Base(filePath)),
+		Key:      filepath.Join(relativeInvalidBaseDir, filepath.Base(filePath)),
 		Filename: filepath.Base(filePath),
-		Mime:     "text/plain",
+		Mime:     "text/csv",
 		Bucket:   serviceConfig.ApplicationSetting.BucketName,
 	})
 	if err != nil {
