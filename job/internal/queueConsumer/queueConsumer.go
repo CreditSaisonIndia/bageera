@@ -264,7 +264,12 @@ func Consume() error {
 			// Close the pool when you're done with it
 			defer pool.Close()
 
-			job := GetJob()
+			job, err := GetJob()
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error(err)
+				break
+			}
 			job.ExecuteStrategy(serviceConfig.ApplicationSetting.ObjectKey)
 
 			rowCountFilePath, err := consolidation.Consolidate()
@@ -447,22 +452,23 @@ func delteMessageFromSQS(deleteParams *sqs.DeleteMessageInput, sqsClient *sqs.SQ
 	return nil
 }
 
-func GetJob() *job.Job {
+func GetJob() (*job.Job, error) {
+	LOGGER := customLogger.GetLogger()
 	switch serviceConfig.ApplicationSetting.JobType {
 	case "insert":
 		var insertJob *insertion.Insertion
-		return job.SetStrategy(insertJob)
+		return job.SetStrategy(insertJob), nil
 
-	case "delete":
-		var insertJob *insertion.Insertion
-		return job.SetStrategy(insertJob)
+	// case "delete":
+	// 	var insertJob *insertion.Insertion
+	// 	return job.SetStrategy(insertJob)
 
-	case "update":
-		var insertJob *insertion.Insertion
-		return job.SetStrategy(insertJob)
+	// case "update":
+	// 	var insertJob *insertion.Insertion
+	// 	return job.SetStrategy(insertJob)
 
 	default:
-		var insertJob *insertion.Insertion
-		return job.SetStrategy(insertJob)
+		LOGGER.Error("INVALID JOB TYPE")
+		return nil, fmt.Errorf("Unsupported Job Type Found : %s", serviceConfig.ApplicationSetting.JobType)
 	}
 }

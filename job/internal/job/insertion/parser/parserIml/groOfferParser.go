@@ -47,14 +47,14 @@ func (*GroOfferParser) Parse(baseOfferPointer *model.BaseOffer) (*model.InitialO
 	}
 	proddbInitialOffer = model.InitialOffer{
 		// Set other fields based on your requirements
-		IsActive:          true, // For example
-		IsDeleted:         false,
-		CreatedAt:         time.Now(),
-		UpdatedAt:         time.Now(),
-		PartnerLoanID:     baseOffer.(*model.GroSingleCsvOffer).PartnerLoanId,
-		Status:            30,
-		OfferSections:     postgres.Jsonb{rawSection},
-		ExpiryDateOfOffer: expiryDateOfOffer,
+		IsActive:      true, // For example
+		IsDeleted:     false,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+		PartnerLoanID: baseOffer.(*model.GroSingleCsvOffer).PartnerLoanId,
+		Status:        30,
+		OfferSections: postgres.Jsonb{rawSection},
+		ExpiryDate:    expiryDateOfOffer,
 
 		// ApplicableSegments: firstOffer.ApplicableSegments,
 		// Set other fields as needed
