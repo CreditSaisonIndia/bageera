@@ -2,7 +2,6 @@ package producer
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -12,7 +11,9 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/consumer"
-	"github.com/CreditSaisonIndia/bageera/internal/model"
+	"github.com/CreditSaisonIndia/bageera/internal/reader"
+	readerIml "github.com/CreditSaisonIndia/bageera/internal/reader/readerImpl"
+	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 )
 
 var maxProducerGoroutines = 15
@@ -46,12 +47,16 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	// Read the CSV file and send chunks to the channel
 	header, err := csvReader.Read()
 	if err != nil {
-		LOGGER.Error("Headers", header)
+		LOGGER.Error("Headers", header, err)
 	}
 
-	offers, err := ReadOffers(csvReader)
+	offerReader := getReaderType(csvReader)
+	offerReader.SetHeader(header)
+
+	offersPointer, err := offerReader.ReaderStrategy(csvReader)
+	offerLength := len(*offersPointer)
 	if err == io.EOF {
-		LOGGER.Error("Reached End of the file with overall size of : ", len(offers))
+		LOGGER.Error("Reached End of the file with overall size of : ", offerLength)
 	} else if err != nil {
 		LOGGER.Error("Error while reading fileName: : ", fileName, err)
 		LOGGER.Error("Producer finished : ", filePath)
@@ -59,53 +64,33 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 		return
 	}
 
-	s := fmt.Sprintf(filePath+" |  Chunk size %v", len(offers))
+	s := fmt.Sprintf(filePath+" |  Chunk size %v", offerLength)
 	LOGGER.Info(s)
-	LOGGER.Info("Chunk 1st parnterLoanId   " + offers[0].PartnerLoanID)
-	LOGGER.Info("Chunk Last parnterLoanId   " + offers[len(offers)-1].PartnerLoanID)
 	consumerWg.Add(1)
 
-	consumer.Worker(outputDir, fileName, offers, consumerWg)
+	consumer.Worker(outputDir, fileName, offersPointer, consumerWg, header)
 
 	LOGGER.Info("Producer finished : ", filePath)
 	<-ProducerConcurrencyCh
-	// Process the data in the producer if needed
-	// (you can replace this with your own logic)
+
 }
 
-func ReadOffers(r *csv.Reader) ([]model.Offer, error) {
-	LOGGER := customLogger.GetLogger()
-	var offers []model.Offer
+func getReaderType(csvReader *csv.Reader) *reader.Reader {
 
-	for {
-		record, err := r.Read()
+	switch serviceConfig.ApplicationSetting.Lpc {
+	case "PSB", "ONL":
+		psbOfferCsvReader := &readerIml.PsbOfferCsvReader{}
 
-		//for index, value := range record {
-		//      fmt.Printf("Index: %d, Value: %s\n", index, value)
-		//}
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
+		return reader.SetReader(psbOfferCsvReader)
 
-		//// Sanitize the "offer_details" field by escaping double quotes
-		//sanitizedJSON := strings.Replace(record[1], `"`, `\"`, -1)
-		////
-		//LOGGER.Info(sanitizedJSON)
-		// Parse the sanitized "offer_details" field as JSON
-		var offerDetails []model.OfferDetail
-		if err := json.Unmarshal([]byte(record[1]), &offerDetails); err != nil {
-			LOGGER.Error(err)
-			return nil, err
-		}
-		offer := model.Offer{
-			PartnerLoanID: record[0],
-			OfferDetails:  offerDetails,
-		}
+	case "GRO", "ANG":
+		groCsvOfferReader := &readerIml.GroCsvOfferReader{}
 
-		offers = append(offers, offer)
+		return reader.SetReader(groCsvOfferReader)
+
+	default:
+		singleOfferReader := &readerIml.SingleOfferReader{}
+
+		return reader.SetReader(singleOfferReader)
 	}
-
-	return offers, nil
 }

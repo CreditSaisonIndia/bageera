@@ -3,7 +3,6 @@ package consumer
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,20 +11,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/CreditSaisonIndia/bageera/internal/csvUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/database"
+	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/parser"
+	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/parser/parserIml"
 	"github.com/CreditSaisonIndia/bageera/internal/model"
-	"github.com/jinzhu/gorm/dialects/postgres"
-	"github.com/lib/pq"
+	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 )
 
 var maxConsumerGoroutines = 15
 var ConsumerConcurrencyCh = make(chan struct{}, maxConsumerGoroutines)
 
-func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *sync.WaitGroup) {
+func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consumerWaitGroup *sync.WaitGroup, header []string) {
 	LOGGER := customLogger.GetLogger()
-	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(offers)))
+	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(*offersPointer)))
 	defer consumerWaitGroup.Done()
 	ConsumerConcurrencyCh <- struct{}{}
 
@@ -68,7 +67,8 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 	successWriter := csv.NewWriter(successFile)
 	defer successWriter.Flush()
 
-	header := []string{"partner_loan_id", "offer_details"}
+	parser := getParserType()
+
 	if err := successWriter.Write(header); err != nil {
 		LOGGER.Error("Error writing CSV header:", err)
 		<-ConsumerConcurrencyCh
@@ -84,16 +84,15 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 		return
 	}
 	col := []string{"created_at", "is_active", "is_deleted", "updated_at", "app_form_id", "partner_loan_id",
-		"status", "offer_sections", "description", "remarks",
-		"attempt"}
+		"status", "offer_sections", "description", "remarks", "attempt", "expiry_date_of_offer"}
 
-	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(offers)))
 	chunkSize := 2000
 	chunkNumber := 0
 
 	// ... (existing code)
-
-	for i := 0; i < len(offers); i += chunkSize {
+	offersLength := len(*offersPointer)
+	offers := *offersPointer
+	for i := 0; i < offersLength; i += chunkSize {
 		chunkNumber++
 		var (
 			placeholders []string
@@ -101,51 +100,60 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 		)
 
 		chunkEnd := i + chunkSize
-		if chunkEnd > len(offers) {
-			chunkEnd = len(offers)
+		if chunkEnd > offersLength {
+			chunkEnd = offersLength
 		}
 
 		chunk := offers[i:chunkEnd]
 
-		//var proddbOffers []model.InitialOffer
+		//var proddboffersPointer []model.InitialOffer
 		for index, offer := range chunk {
 
-			proddbOffer, err := convertToProddbOffer(offer)
+			proddbOffer, err := parser.ParserStrategy(&offer)
 			if err != nil {
 				LOGGER.Error("Error converting offer:", err)
-				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 				continue
 			}
+
 			//print("proddbOffer.IsActive : ", reflect.TypeOf(proddbOffer.IsActive))
-			placeholders = append(placeholders, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-				index*11+1,
-				index*11+2,
-				index*11+3,
-				index*11+4,
-				index*11+5,
-				index*11+6,
-				index*11+7,
-				index*11+8,
-				index*11+9,
-				index*11+10,
-				index*11+11,
+			placeholders = append(placeholders, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+				index*len(col)+1,
+				index*len(col)+2,
+				index*len(col)+3,
+				index*len(col)+4,
+				index*len(col)+5,
+				index*len(col)+6,
+				index*len(col)+7,
+				index*len(col)+8,
+				index*len(col)+9,
+				index*len(col)+10,
+				index*len(col)+11,
+				index*len(col)+12,
 			))
 
-			vals = append(vals, proddbOffer.CreatedAt, proddbOffer.IsActive, proddbOffer.IsDeleted, proddbOffer.UpdatedAt, proddbOffer.AppFormID, proddbOffer.PartnerLoanID, proddbOffer.Status, proddbOffer.OfferSections, proddbOffer.Description, proddbOffer.Remarks, proddbOffer.Attempt)
+			vals = append(vals, proddbOffer.CreatedAt, proddbOffer.IsActive, proddbOffer.IsDeleted, proddbOffer.UpdatedAt, proddbOffer.AppFormID, proddbOffer.PartnerLoanID, proddbOffer.Status, proddbOffer.OfferSections, proddbOffer.Description, proddbOffer.Remarks, proddbOffer.Attempt, proddbOffer.ExpiryDateOfOffer)
 		}
 
 		// print("placeholders : ", placeholders)
 		// print("vals: ", vals)
 
 		// Construct the SQL query
+		// Construct the SQL query with ON CONFLICT
+		// query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s ON CONFLICT (partner_loan_id) DO UPDATE SET "+
+		// 	"updated_at = EXCLUDED.updated_at, "+
+		// 	"offer_sections = EXCLUDED.offer_sections,"+
+		// 	"attempt = EXCLUDED.attempt,expiry_date_of_offer = EXCLUDED.expiry_date_of_offer",
+		// 	strings.Join(col, ", "), strings.Join(placeholders, ","))
 		query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s", strings.Join(col, ", "), strings.Join(placeholders, ","))
+
 		LOGGER.Info("Worker : " + fileName + "--->>>> GETTTING DB")
 		// Now you can use the pool to get a database connection
 		conn, err := database.GetPgxPool().Acquire(context.Background())
 		if err != nil {
-			LOGGER.Error("Error : Worker : "+fileName+" ------>  accquire ", err)
+			LOGGER.Error("Error Worker : "+fileName+" ------>  accquire ", err)
 			for _, offer := range chunk {
-				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 			}
 			<-ConsumerConcurrencyCh
 			return
@@ -155,7 +163,7 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 		if err != nil {
 			LOGGER.Error("Error : Worker : "+fileName+"------> conn.Begin(context.Background()) ", err)
 			for _, offer := range chunk {
-				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 			}
 			<-ConsumerConcurrencyCh
 			return
@@ -166,7 +174,7 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 			LOGGER.Error("Error : Worker : "+fileName+" ------> tx.Exe ", err)
 			tx.Rollback(context.Background())
 			for _, offer := range chunk {
-				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 			}
 			<-ConsumerConcurrencyCh
 			return
@@ -178,7 +186,7 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 			LOGGER.Info("Error : ------>  committing transaction:", err)
 			tx.Rollback(context.Background())
 			for _, offer := range chunk {
-				csvUtilityWrapper.WriteOfferToCSV(failureWriter, offer)
+				parser.WriteOfferToCsv(failureWriter, &offer)
 			}
 			<-ConsumerConcurrencyCh
 			return
@@ -188,7 +196,7 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 		LOGGER.Info("fileName : ", chunkFileNameWithoutExtension, "---->>>>>>CHUNK NUMBER : ", chunkNumber)
 
 		for _, offer := range chunk {
-			csvUtilityWrapper.WriteOfferToCSV(successWriter, offer)
+			parser.WriteOfferToCsv(successWriter, &offer)
 		}
 		LOGGER.Info("------------RELEASING CONNECTION--------------")
 		conn.Release()
@@ -201,80 +209,18 @@ func Worker(filePath, fileName string, offers []model.Offer, consumerWaitGroup *
 	<-ConsumerConcurrencyCh
 }
 
-func convertToInterfaceSlice(slice []interface{}) []interface{} {
-	result := make([]interface{}, len(slice))
-	for i, v := range slice {
-		switch val := v.(type) {
-		case bool:
-			result[i] = pq.BoolArray{val}
-		default:
-			result[i] = v
-		}
+func getParserType() *parser.Parser {
+
+	switch serviceConfig.ApplicationSetting.Lpc {
+	case "PSB", "ONL":
+		psbOfferParser := &parserIml.PsbOfferParser{}
+		return parser.SetParser(psbOfferParser)
+	case "GRO", "ANG":
+		groOfferParser := &parserIml.GroOfferParser{}
+		return parser.SetParser(groOfferParser)
+
+	default:
+		singleOfferParser := &parserIml.SingleOfferParser{}
+		return parser.SetParser(singleOfferParser)
 	}
-	return result
-}
-
-func convertToProddbOffer(offer model.Offer) (model.InitialOffer, error) {
-	LOGGER := customLogger.GetLogger()
-	var proddbInitialOffer model.InitialOffer
-	rawSection, err := getSection(offer.OfferDetails)
-	if err != nil {
-		LOGGER.Info("Error While forming marshalling section with following error : ", err)
-		return proddbInitialOffer, err
-	}
-	proddbInitialOffer = model.InitialOffer{
-		// Set other fields based on your requirements
-		IsActive:      true, // For example
-		IsDeleted:     false,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
-		PartnerLoanID: offer.PartnerLoanID,
-		Status:        30,
-		OfferSections: postgres.Jsonb{rawSection},
-
-		// ApplicableSegments: firstOffer.ApplicableSegments,
-		// Set other fields as needed
-	}
-
-	return proddbInitialOffer, nil
-}
-
-func getSection(offers []model.OfferDetail) ([]byte, error) {
-
-	LOGGER := customLogger.GetLogger()
-	var offerSectionArray []model.OfferSection
-
-	for _, resp := range offers {
-		var internalOfferArray = resp.Offers
-
-		for _, internalOffer := range internalOfferArray {
-
-			section := model.OfferSection{
-				ID:                 internalOffer.OfferID,
-				Interest:           internalOffer.ROI,
-				Tenure:             internalOffer.PreferredTenure,
-				ValidTill:          resp.ExpiryDateOfOffer,
-				PreApprovalDate:    resp.DateOfOffer,
-				PreferredTenure:    internalOffer.PreferredTenure,
-				MaxTenure:          internalOffer.MaxTenure,
-				MinTenure:          internalOffer.MinTenure,
-				ExpiryDateOfOffer:  resp.ExpiryDateOfOffer,
-				CreditLimit:        internalOffer.CreditLimit,
-				RateOfInterest:     internalOffer.ROI,
-				PF:                 internalOffer.PF,
-				DedupeString:       resp.DedupeString,
-				ApplicableSegments: internalOffer.ApplicableSegments,
-			}
-			offerSectionArray = append(offerSectionArray, section)
-		}
-	}
-
-	rawMessage, err := json.Marshal(offerSectionArray)
-	if err != nil {
-		LOGGER.Info("Error while marshalling to json b:", err)
-		return nil, err
-	}
-
-	// Print the json.RawMessage
-	return rawMessage, nil
 }

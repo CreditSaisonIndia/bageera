@@ -71,6 +71,23 @@ func GetMetadataObjectKey() string {
 
 }
 
+func GetJobTypeFromPath() string {
+	path := serviceConfig.ApplicationSetting.ObjectKey
+	parts := strings.Split(path, "/")
+
+	// Iterate through the parts to find "insert"
+	var extractedPart string
+
+	for _, part := range parts {
+		if part == "insert" {
+			extractedPart = part
+			break
+		}
+	}
+	return extractedPart
+
+}
+
 func GetInvalidObjectKey() string {
 	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 
