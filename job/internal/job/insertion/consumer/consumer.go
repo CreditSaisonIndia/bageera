@@ -84,7 +84,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		return
 	}
 	col := []string{"created_at", "is_active", "is_deleted", "updated_at", "app_form_id", "partner_loan_id",
-		"status", "offer_sections", "description", "remarks", "attempt", "expiry_date_of_offer"}
+		"status", "offer_sections", "description", "remarks", "attempt", "expiry_date"}
 
 	chunkSize := 2000
 	chunkNumber := 0
@@ -132,7 +132,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 				index*len(col)+12,
 			))
 
-			vals = append(vals, proddbOffer.CreatedAt, proddbOffer.IsActive, proddbOffer.IsDeleted, proddbOffer.UpdatedAt, proddbOffer.AppFormID, proddbOffer.PartnerLoanID, proddbOffer.Status, proddbOffer.OfferSections, proddbOffer.Description, proddbOffer.Remarks, proddbOffer.Attempt, proddbOffer.ExpiryDateOfOffer)
+			vals = append(vals, proddbOffer.CreatedAt, proddbOffer.IsActive, proddbOffer.IsDeleted, proddbOffer.UpdatedAt, proddbOffer.AppFormID, proddbOffer.PartnerLoanID, proddbOffer.Status, proddbOffer.OfferSections, proddbOffer.Description, proddbOffer.Remarks, proddbOffer.Attempt, proddbOffer.ExpiryDate)
 		}
 
 		// print("placeholders : ", placeholders)
@@ -143,7 +143,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		// query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s ON CONFLICT (partner_loan_id) DO UPDATE SET "+
 		// 	"updated_at = EXCLUDED.updated_at, "+
 		// 	"offer_sections = EXCLUDED.offer_sections,"+
-		// 	"attempt = EXCLUDED.attempt,expiry_date_of_offer = EXCLUDED.expiry_date_of_offer",
+		// 	"attempt = EXCLUDED.attempt,expiry_date = EXCLUDED.expiry_date",
 		// 	strings.Join(col, ", "), strings.Join(placeholders, ","))
 		query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s", strings.Join(col, ", "), strings.Join(placeholders, ","))
 
