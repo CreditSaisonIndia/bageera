@@ -111,6 +111,8 @@ Resources:
               Value: !Ref EnvironmentType
             - Name: dbHost
               Value: '{{resolve:ssm:MASTER_DB_HOST}}'
+            - Name: readerDbHost
+              Value: '{{resolve:ssm:READER_DB_HOST}}'
             - Name: efsBasePath
               Value: "/app/bageera/temp/data"
             

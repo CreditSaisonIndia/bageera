@@ -3,6 +3,7 @@ package readerIml
 import (
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
@@ -47,9 +48,16 @@ func (r *PsbOfferCsvReader) Read(csvReader *csv.Reader) (*[]model.BaseOffer, err
 		}
 
 		baseOfferArr = append(baseOfferArr, &multiCsvOffer)
+
 	}
-	LOGGER.Info("Chunk 1st parnterLoanId -->>  ", baseOfferArr[0].(*model.MultiCsvOffer).PartnerLoanId)
-	LOGGER.Info("Chunk Last parnterLoanId -->>  " + baseOfferArr[len(baseOfferArr)-1].(*model.MultiCsvOffer).PartnerLoanId)
+	offersLen := len(baseOfferArr)
+	if offersLen > 0 {
+		LOGGER.Info("Chunk 1st parnterLoanId -->>  ", baseOfferArr[0].(*model.MultiCsvOffer).PartnerLoanId)
+		LOGGER.Info("Chunk Last parnterLoanId -->>  " + baseOfferArr[len(baseOfferArr)-1].(*model.MultiCsvOffer).PartnerLoanId)
+	} else {
+		LOGGER.Error("NO OFFER FOUND IN")
+		return nil, fmt.Errorf("NO OFFER LEFT TO READ")
+	}
 
 	return &baseOfferArr, nil
 }

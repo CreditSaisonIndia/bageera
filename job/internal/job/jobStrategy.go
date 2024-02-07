@@ -10,5 +10,9 @@ type JobStrategy interface {
 	/*
 		Below method should be implemented by concerete structs with their own use case
 	*/
-	Execute(path string)
+	ExecuteJob(path string, tableName string)
+
+	GetFileNamePattern() string
+
+	SetFileNamePattern(pattern string)
 }

@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 
@@ -17,10 +18,9 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job"
-	"github.com/CreditSaisonIndia/bageera/internal/job/insertion"
+	"github.com/CreditSaisonIndia/bageera/internal/job/existence"
 	"github.com/CreditSaisonIndia/bageera/internal/sequentialValidator"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
-	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -193,12 +193,28 @@ func Consume() error {
 				break
 			}
 
-			LOGGER.Info("Splitting...")
-			err = splitter.SplitCsv()
+			existence := &existence.Existence{
+				LOGGER: customLogger.GetLogger(), // Adjust the logger as needed
+				// Set to true if you want to use IAM role authentication
+			}
+
+			err = existence.ExecuteJob(serviceConfig.ApplicationSetting.ObjectKey, "initial_offer")
 			if err != nil {
+				LOGGER.Error("ERROR WHILE existence.Execute() : ", err)
+				break
+			}
+			fileNameWithoutExt, _ := utils.GetFileName()
+			fileNameWithoutExt += "_valid"
+			failureFilePathFormat := "%s_%s_exist_failure.csv"
+			successFilePathFormat := "%s_%s_exist_success.csv"
+			failurePattern := regexp.MustCompile(fmt.Sprintf(`^%s_\d+_exist_failure\.csv$`, fileNameWithoutExt))
+			successPattern := regexp.MustCompile(fmt.Sprintf(`^%s_\d+_exist_success\.csv$`, fileNameWithoutExt))
+
+			existRowCountFilePath, err := consolidation.Consolidate(failurePattern, successPattern, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, "exist_row_count.csv", 3)
+			if err != nil {
+				LOGGER.Error("ERROR WHILE CONSOLIDATION : ", err)
 				serviceConfig.PrintSettings()
-				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
-				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE SPLITTING CSV - %s", err))
+				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE CONSOLIDATION - %s", err))
 				LOGGER.Info("Starting invalid upload file Wait")
 				invalidGoroutinesWaitGroup := sync.WaitGroup{}
 				invalidGoroutinesWaitGroup.Add(1)
@@ -209,6 +225,31 @@ func Consume() error {
 				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
 				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
 				break
+			}
+
+			verifier := &consolidation.ExistenceVerifyConsolidatorImpl{}
+			result := verifier.VerifyCount(existRowCountFilePath)
+			if result.SomePresent {
+				LOGGER.Info("******CSV HAS SOME NEW OFFERS TO DUMP******")
+
+			} else if result.AllPresent {
+				LOGGER.Error("******CSV HAS NO NEW OFFERS TO DUMP******")
+				//not breaking the flow if the job type is of delete
+				if serviceConfig.ApplicationSetting.JobType == "insert" {
+					awsClient.SendAlertMessage("FAILED", "All Offers are Pre-Existing")
+					break
+				}
+				LOGGER.Error("******SKIPPING THE BREAK SINCE JOB IS OF TYPE DELETE/UPDATE******")
+
+			} else if result.AllAbsent {
+				LOGGER.Error("******CSV HAS WHOLE NEW OFFERS TO DUMP******")
+				//not breaking the flow if the job type is of delete
+				if serviceConfig.ApplicationSetting.JobType == "update" || serviceConfig.ApplicationSetting.JobType == "delete" {
+					awsClient.SendAlertMessage("FAILED", "All Offers are Non-Existing")
+
+					break
+				}
+				LOGGER.Error("******SKIPPING THE BREAK SINCE JOB IS OF TYPE INSERT******")
 			}
 
 			// Initialize the global CustomDBManager from the new package
@@ -264,15 +305,20 @@ func Consume() error {
 			// Close the pool when you're done with it
 			defer pool.Close()
 
-			job, err := GetJob()
+			job, err := job.GetJob()
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error(err)
 				break
 			}
-			job.ExecuteStrategy(serviceConfig.ApplicationSetting.ObjectKey)
+			job.ExecuteStrategy(serviceConfig.ApplicationSetting.ObjectKey, "initial_offer")
 
-			rowCountFilePath, err := consolidation.Consolidate()
+			fileNameWithoutExt, _ = utils.GetFileName()
+			fileNameWithoutExt += "_valid"
+			failureFilePathFormat, successFilePathFormat, failurePatternString, successPatternString := getSuccessAndFailurePathFormat()
+			failurePattern = regexp.MustCompile(fmt.Sprintf(failurePatternString, fileNameWithoutExt, serviceConfig.ApplicationSetting.JobType))
+			successPattern = regexp.MustCompile(fmt.Sprintf(successPatternString, fileNameWithoutExt, serviceConfig.ApplicationSetting.JobType))
+			jobRowCountFilePath, err := consolidation.Consolidate(failurePattern, successPattern, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, "job_row_count.csv", 5)
 			if err != nil {
 				LOGGER.Error("ERROR WHILE CONSOLIDATION : ", err)
 				serviceConfig.PrintSettings()
@@ -289,8 +335,8 @@ func Consume() error {
 				break
 			}
 
-			verifier := &consolidation.VerifyConsolidatorImpl{}
-			result := verifier.CheckConsolidator(rowCountFilePath)
+			jobVerifier := &consolidation.JobVerifyConsolidatorImpl{}
+			result = jobVerifier.VerifyCount(jobRowCountFilePath)
 			if result.IsValid {
 				LOGGER.Info("Validation passed for Result")
 				awsClient.SendAlertMessage("SUCCESS", "")
@@ -319,19 +365,12 @@ func Consume() error {
 			invalidGoroutinesWaitGroup := sync.WaitGroup{}
 			invalidGoroutinesWaitGroup.Add(1)
 			invalidBaseDir := utils.GetInvalidBaseDir()
-			fileNameWithoutExt, _ := utils.GetFileName()
+			fileNameWithoutExt, _ = utils.GetFileName()
 			uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
 				filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
 			LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
 			LOGGER.Info("Ended invalid upload file")
 
-			LOGGER.Info("Starting Rowupload file")
-			invalidGoroutinesWaitGroup1 := sync.WaitGroup{}
-			invalidGoroutinesWaitGroup1.Add(1)
-			uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup1,
-				rowCountFilePath)
-			LOGGER.Info("*******ROW COUNT FILE UPLOAD CALL DONE*******")
-			LOGGER.Info("Ended Row upload file")
 		}
 	}
 	return nil
@@ -403,13 +442,6 @@ func setConfigFromSqsMessage(jsonMessage string) error {
 	serviceConfig.ApplicationSetting.Lpc = lpc
 	serviceConfig.Set("lpc", lpc)
 
-	// execution := s3UploadEvent.Execution
-	// serviceConfig.Set("execution", execution)
-
-	// requestQueueUrl := s3UploadEvent.RequestQueueUrl
-	// serviceConfig.ApplicationSetting.PqJobQueueUrl = requestQueueUrl
-	// serviceConfig.Set("requestQueueUrl", requestQueueUrl)
-
 	//dbUsername := s3UploadEvent.DBUserName
 	serviceConfig.Set("dbUsername", serviceConfig.DatabaseSetting.User)
 
@@ -452,23 +484,18 @@ func delteMessageFromSQS(deleteParams *sqs.DeleteMessageInput, sqsClient *sqs.SQ
 	return nil
 }
 
-func GetJob() (*job.Job, error) {
-	LOGGER := customLogger.GetLogger()
-	switch serviceConfig.ApplicationSetting.JobType {
-	case "insert":
-		var insertJob *insertion.Insertion
-		return job.SetStrategy(insertJob), nil
-
-	// case "delete":
-	// 	var insertJob *insertion.Insertion
-	// 	return job.SetStrategy(insertJob)
-
-	// case "update":
-	// 	var insertJob *insertion.Insertion
-	// 	return job.SetStrategy(insertJob)
-
-	default:
-		LOGGER.Error("INVALID JOB TYPE")
-		return nil, fmt.Errorf("Unsupported Job Type Found : %s", serviceConfig.ApplicationSetting.JobType)
+func getSuccessAndFailurePathFormat() (string, string, string, string) {
+	if serviceConfig.ApplicationSetting.JobType == "insert" {
+		failureFilePathFormat := "%s_%s_exist_failure_insert_failure.csv"
+		successFilePathFormat := "%s_%s_exist_failure_insert_success.csv"
+		failurePatternString := `^%s_\d+_exist_failure_%s_failure\.csv$`
+		successPatternString := `^%s_\d+_exist_failure_%s_success\.csv$`
+		return failureFilePathFormat, successFilePathFormat, failurePatternString, successPatternString
 	}
+
+	failureFilePathFormat := "%s_%s_exist_success_" + serviceConfig.ApplicationSetting.JobType + "_failure.csv"
+	successFilePathFormat := "%s_%s_exist_success_" + serviceConfig.ApplicationSetting.JobType + "_success.csv"
+	failurePatternString := `^%s_\d+_exist_success_%s_failure\.csv$`
+	successPatternString := `^%s_\d+_exist_success_%s_success\.csv$`
+	return failureFilePathFormat, successFilePathFormat, failurePatternString, successPatternString
 }

@@ -99,7 +99,7 @@ func SetUp(env string) {
 		ApplicationSetting.FileName = os.Getenv("fileName")
 
 		DatabaseSetting.MasterDbHost = os.Getenv("dbHost")
-
+		DatabaseSetting.ReaderDbHost = os.Getenv("readerDbHost")
 		DatabaseSetting.Name = "proddb"
 		DatabaseSetting.Password = os.Getenv("dbPassword")
 		DatabaseSetting.Port = "5432"

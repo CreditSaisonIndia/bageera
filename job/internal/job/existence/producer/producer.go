@@ -11,7 +11,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/csvUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
-	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/consumer"
+	"github.com/CreditSaisonIndia/bageera/internal/job/existence/consumer"
 	"github.com/CreditSaisonIndia/bageera/internal/reader"
 	readerIml "github.com/CreditSaisonIndia/bageera/internal/reader/readerImpl"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
@@ -20,7 +20,7 @@ import (
 var maxProducerGoroutines = 15
 var ProducerConcurrencyCh = make(chan struct{}, maxProducerGoroutines)
 
-func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *sync.WaitGroup, tableName string) {
+func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *sync.WaitGroup) {
 	LOGGER := customLogger.GetLogger()
 	defer wg.Done()
 	ProducerConcurrencyCh <- struct{}{}
@@ -77,7 +77,7 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	LOGGER.Info(s)
 	consumerWg.Add(1)
 
-	consumer.Worker(outputDir, fileName, offersPointer, consumerWg, header, tableName)
+	consumer.Worker(outputDir, fileName, offersPointer, consumerWg, header)
 
 	LOGGER.Info("Producer finished : ", filePath)
 	<-ProducerConcurrencyCh
@@ -85,7 +85,6 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 }
 
 func getReaderType(csvReader *csv.Reader) *reader.Reader {
-
 	switch serviceConfig.ApplicationSetting.Lpc {
 	case "PSB", "ONL":
 		psbOfferCsvReader := &readerIml.PsbOfferCsvReader{}
@@ -102,4 +101,5 @@ func getReaderType(csvReader *csv.Reader) *reader.Reader {
 
 		return reader.SetReader(singleOfferReader)
 	}
+
 }

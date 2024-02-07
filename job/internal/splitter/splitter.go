@@ -2,7 +2,6 @@ package splitter
 
 import (
 	"errors"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -15,10 +14,9 @@ import (
 
 var LOGGER *zap.SugaredLogger
 
-func SplitCsv() error {
+func SplitCsv(outputChunkDir string) error {
 
 	LOGGER := customLogger.GetLogger()
-	outputChunkDir := utils.GetChunksDir()
 
 	if err := os.MkdirAll(outputChunkDir, os.ModePerm); err != nil {
 		LOGGER.Info("Error creating directory:", err)
@@ -27,7 +25,7 @@ func SplitCsv() error {
 
 	splitter := splitCsv.New()
 	splitter.Separator = ";"          // "," is by default
-	splitter.FileChunkSize = 20000000 //in bytes (200MB)
+	splitter.FileChunkSize = 20000000 //in bytes (20MB)
 	baseDir := utils.GetMetadataBaseDir()
 	fileNameWithoutExt, fileName := utils.GetFileName()
 	fileNameWithoutExt = fileNameWithoutExt + "_valid"
@@ -56,7 +54,7 @@ func SplitCsv() error {
 		return err
 	}
 
-	log.Printf("Total CSV files in %s: %d\n", outputChunkDir, csvCount)
+	LOGGER.Info("Total CSV files in %s: %d\n", outputChunkDir, csvCount)
 	return nil
 }
 

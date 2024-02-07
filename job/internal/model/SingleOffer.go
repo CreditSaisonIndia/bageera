@@ -17,3 +17,8 @@ type GroSingleCsvOffer struct {
 	SingleCsvOffer
 	Pf string `json:"pf"`
 }
+
+type DeleteCsvOffer struct {
+	BaseOffer
+	PartnerLoanId string `json:"partner_loan_id"`
+}

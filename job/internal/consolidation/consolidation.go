@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -14,60 +15,23 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 )
 
-func Consolidate() (string, error) {
+func Consolidate(failurePattern *regexp.Regexp, successPattern *regexp.Regexp, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, resultFileName string, afterLen int) (string, error) {
 	//"/Users/taylor/workspace/go/offer/PSB/file_PSB_500000/chunks"
 	LOGGER := customLogger.GetLogger()
-	chunksDir := utils.GetChunksDir()
-	LOGGER.Info("chunksDir :", chunksDir)
-	fileNameWithoutExt, _ := utils.GetFileName()
-	fileNameWithoutExt = fileNameWithoutExt + "_valid"
-	LOGGER.Info("fileName :", fileNameWithoutExt)
 	// Retrieve only original CSV files in the chunks directory
-	s_f_dir := filepath.Join(chunksDir, fileNameWithoutExt+"_*_*.csv")
-	LOGGER.Info("s_f_dir :", s_f_dir)
-	matches, err := filepath.Glob(s_f_dir)
+
+	outputChunkDir := utils.GetChunksDir()
+	files, err := os.ReadDir(outputChunkDir)
 	if err != nil {
-		LOGGER.Error("Error filepath.Glob: ", err)
+		LOGGER.Error("Error reading directory:", err)
 		return "", err
-	}
-
-	// Create maps to track processed chunks and their counts
-	processedChunks := make(map[string]bool)
-	failureCounts := make(map[string]int)
-	successCounts := make(map[string]int)
-
-	// Iterate over original CSV files and count rows for failure and success files
-	for _, filePath := range matches {
-		chunkID := extractChunkID(filePath)
-
-		// Skip processing if the chunk has already been processed
-		if processedChunks[chunkID] {
-			continue
-		}
-		processedChunks[chunkID] = true
-
-		failureFilePath := fmt.Sprintf("%s_%s_failure.csv", fileNameWithoutExt, chunkID)
-		successFilePath := fmt.Sprintf("%s_%s_success.csv", fileNameWithoutExt, chunkID)
-		failureRowCount, err := getRowCount(filepath.Join(chunksDir, failureFilePath))
-		if err != nil {
-			LOGGER.Error("Error failureRowCount getRowCount: ", err)
-			return "", err
-		}
-		failureCounts[chunkID] = failureRowCount
-
-		successRowCount, err := getRowCount(filepath.Join(chunksDir, successFilePath))
-		if err != nil {
-			LOGGER.Error("Error successRowCount getRowCount: ", err)
-			return "", err
-		}
-		successCounts[chunkID] = successRowCount
 	}
 	resultDir := utils.GetResultsDir()
 	if err := os.MkdirAll(resultDir, os.ModePerm); err != nil {
 		LOGGER.Error("Error MkdirAll result dir : ", err)
 		return "", err
 	}
-	rowCountPath := filepath.Join(resultDir, "row_counts.csv")
+	rowCountPath := filepath.Join(resultDir, resultFileName)
 	log.Println("rowCountPath : ", rowCountPath)
 	// Create a CSV file for counts
 	csvFile, err := os.Create(rowCountPath)
@@ -87,18 +51,74 @@ func Consolidate() (string, error) {
 		return "", err
 	}
 
-	// Iterate over processed chunks and write counts to CSV
-	for chunkID, _ := range processedChunks {
-		// Write row counts to CSV
-		row := []string{chunkID, fmt.Sprintf("%s_%s.csv", fileNameWithoutExt, chunkID),
-			fmt.Sprintf("%d", failureCounts[chunkID]), fmt.Sprintf("%d", successCounts[chunkID])}
-		if err := csvWriter.Write(row); err != nil {
-			LOGGER.Error("Error csvWriter.Write(row): ", err)
-			return "", err
+	for _, file := range files {
+		if file.IsDir() {
+			// Get the subdirectory path
+			subDir := filepath.Join(outputChunkDir, file.Name())
+
+			subDirFiles, err := os.ReadDir(subDir)
+			if err != nil {
+				LOGGER.Error("Error reading directory:", err)
+				return "", err
+			}
+			// Create maps to track processed chunks and their counts
+			processedChunks := make(map[string]bool)
+			failureCounts := make(map[string]int)
+			successCounts := make(map[string]int)
+			for _, file := range subDirFiles {
+
+				LOGGER.Info("file :", file.Name())
+				if err != nil {
+					LOGGER.Error("Error filepath.Glob: ", err)
+					return "", err
+				}
+
+				var chunkID string
+				if !processedChunks[chunkID] && (failurePattern.MatchString(file.Name()) || successPattern.MatchString(filepath.Base(file.Name()))) {
+					LOGGER.Info("Processing File  : ", file.Name())
+					chunkID := extractChunkID(file.Name(), afterLen)
+					// Skip processing if the chunk has already been processed
+
+					failureFilePath := fmt.Sprintf(failureFilePathFormat, fileNameWithoutExt, chunkID)
+					successFilePath := fmt.Sprintf(successFilePathFormat, fileNameWithoutExt, chunkID)
+					failureRowCount, err := getRowCount(filepath.Join(subDir, failureFilePath))
+					LOGGER.Info("SUCCESS PATH : ", successFilePath)
+					LOGGER.Info("FAILURE PATH : ", failureFilePath)
+					if err != nil {
+						LOGGER.Error("Error failureRowCount getRowCount: ", err)
+						return "", err
+					}
+					failureCounts[chunkID] = failureRowCount
+
+					successRowCount, err := getRowCount(filepath.Join(subDir, successFilePath))
+					if err != nil {
+						LOGGER.Error("Error successRowCount getRowCount: ", err)
+						return "", err
+					}
+					successCounts[chunkID] = successRowCount
+					processedChunks[chunkID] = true
+					LOGGER.Info("Processed File  : ", file.Name())
+
+				}
+
+			}
+
+			// Iterate over processed chunks and write counts to CSV
+			for chunkID, _ := range processedChunks {
+				// Write row counts to CSV
+				row := []string{chunkID, fmt.Sprintf("%s_%s.csv", fileNameWithoutExt, chunkID),
+					fmt.Sprintf("%d", failureCounts[chunkID]), fmt.Sprintf("%d", successCounts[chunkID])}
+				if err := csvWriter.Write(row); err != nil {
+					LOGGER.Error("Error csvWriter.Write(row): ", err)
+					return "", err
+				}
+			}
+
 		}
+
 	}
 
-	LOGGER.Info("Row counts written to row_counts.csv")
+	LOGGER.Info("Row counts written to -----> ", resultFileName)
 	return rowCountPath, nil
 }
 
@@ -128,28 +148,35 @@ func getRowCount(filePath string) (int, error) {
 	return rowCount, nil
 }
 
-func extractChunkID(filePath string) string {
-	// Assuming the file name format is "file_PSB_500000_{chunkID}.csv"
+func extractChunkID(filePath string, afterLen int) string {
+	// Assuming the file name format is "file_PSB_1000000_1_valid_1000000_exist_success.csv"
 	fileName := filepath.Base(filePath)
 	parts := strings.Split(fileName, "_")
-	chunkID := parts[len(parts)-2]
+	chunkID := parts[len(parts)-afterLen]
 	return chunkID
 }
 
 type ValidationResult struct {
-	IsValid bool
-	Err     error
+	IsValid     bool
+	AllPresent  bool
+	AllAbsent   bool
+	SomePresent bool
+	Err         error
+}
+
+type ExistenceValidationResult struct {
+	ValidationResult
 }
 type VerifyConsolidator interface {
-	CheckConsolidator(filePath string) ValidationResult
+	VerifyCount(filePath string) ValidationResult
 }
-type VerifyConsolidatorImpl struct{}
+type JobVerifyConsolidatorImpl struct{}
 
-func (v *VerifyConsolidatorImpl) CheckConsolidator(filePath string) ValidationResult {
+func (v *JobVerifyConsolidatorImpl) VerifyCount(filePath string) ValidationResult {
 	// Open the CSV file
 	file, err := os.Open(filePath)
 	if err != nil {
-		return ValidationResult{false, err}
+		return ValidationResult{IsValid: false, Err: err}
 	}
 	defer file.Close()
 	// Create a CSV reader
@@ -157,22 +184,72 @@ func (v *VerifyConsolidatorImpl) CheckConsolidator(filePath string) ValidationRe
 	// Read all records from the CSV file
 	records, err := reader.ReadAll()
 	if err != nil {
-		return ValidationResult{false, err}
+		return ValidationResult{IsValid: false, Err: err}
 	}
 	// Task 1: Check if there is data apart from the header
 	if len(records) <= 1 {
-		return ValidationResult{false, err}
+		return ValidationResult{IsValid: false, Err: err}
 	}
 	// Task 2: Check if all FailureCount rows have only one value
 	for _, record := range records[1:] { // Start from index 1 to skip the header
 		failureCount, err := strconv.Atoi(record[2])
 		if err != nil {
-			return ValidationResult{false, err}
+			return ValidationResult{IsValid: false, Err: err}
 		}
 		if failureCount != 1 {
-			return ValidationResult{false, err}
+			return ValidationResult{IsValid: false, Err: err}
 		}
 	}
 	// All checks passed
-	return ValidationResult{true, err}
+	return ValidationResult{IsValid: true, Err: err}
+}
+
+type ExistenceVerifyConsolidatorImpl struct{}
+
+func (v *ExistenceVerifyConsolidatorImpl) VerifyCount(filePath string) ValidationResult {
+	// Open the CSV file
+	var allPresent, allAbsent, somePresent bool = false, false, false
+	file, err := os.Open(filePath)
+	if err != nil {
+		return ValidationResult{IsValid: false, Err: err}
+	}
+	defer file.Close()
+	// Create a CSV reader
+	reader := csv.NewReader(file)
+	// Read all records from the CSV file
+	records, err := reader.ReadAll()
+	if err != nil {
+		return ValidationResult{IsValid: false, Err: err}
+	}
+	// Task 1: Check if there is data apart from the header
+	countRecordsLength := len(records)
+	if countRecordsLength <= 1 {
+		return ValidationResult{IsValid: false, Err: err}
+	}
+	// Task 2: Check if all FailureCount rows have only one value
+	var localFailureCount, localSuccessCount int
+
+	for _, record := range records[1:] { // Start from index 1 to skip the header
+		failureCount, err := strconv.Atoi(record[2])
+		localFailureCount += failureCount
+		successCount, err := strconv.Atoi(record[3])
+		localSuccessCount += successCount
+		if err != nil {
+			return ValidationResult{IsValid: false, Err: err}
+		}
+	}
+	//All Counts includes header
+
+	//overAllRecords := localFailureCount + localSuccessCount
+
+	if localFailureCount == countRecordsLength-1 {
+		allPresent = true
+	} else if localSuccessCount == countRecordsLength-1 {
+		allAbsent = true
+	} else {
+		somePresent = true
+	}
+
+	// All checks passed
+	return ValidationResult{IsValid: true, AllPresent: allPresent, AllAbsent: allAbsent, SomePresent: somePresent, Err: err}
 }

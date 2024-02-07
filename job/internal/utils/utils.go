@@ -36,6 +36,19 @@ func GetMetadataUsecaseDir(usecaseDir string) string {
 
 }
 
+func GetMetadataUsecasesDir(usecaseDir ...string) string {
+	fmt.Printf("Fetching EFS base path value From Settings : %s\n", serviceConfig.ApplicationSetting.EfsBasePath)
+	fmt.Printf("Fetching EFS base path value From env : %s\n", os.Getenv("efsBasePath"))
+	efsBasePath := os.Getenv("efsBasePath")
+	objectKey := GetMetadataObjectKey()
+	dirPath := filepath.Dir(objectKey)
+	// Extract the fileName without extension
+	fileName := filepath.Base(objectKey)
+	fileNameWithoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]
+	return filepath.Join(efsBasePath, dirPath, fileNameWithoutExt, filepath.Join(usecaseDir...))
+
+}
+
 func GetMetadataBaseDir() string {
 	fmt.Printf("Fetching EFS base path value From Settings : %s\n", serviceConfig.ApplicationSetting.EfsBasePath)
 	fmt.Printf("Fetching EFS base path value From env : %s\n", os.Getenv("efsBasePath"))
@@ -91,9 +104,8 @@ func GetJobTypeFromPath() string {
 
 	// Iterate through the parts to find "insert"
 	var extractedPart string
-
 	for _, part := range parts {
-		if part == "insert" {
+		if part == "insert" || part == "delete" || part == "update" {
 			extractedPart = part
 			break
 		}
@@ -122,6 +134,10 @@ func GetInvalidObjectKey() string {
 
 func GetChunksDir() string {
 	return GetMetadataUsecaseDir("chunks")
+}
+
+func GetExistenceChunksDir() string {
+	return GetMetadataUsecasesDir("chunks")
 }
 
 func GetResultsDir() string {

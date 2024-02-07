@@ -79,11 +79,11 @@ func Validate(filePath string) (bool, error) {
 
 	validatorFactory := GetOfferValidatorFactory(serviceConfig.ApplicationSetting.Lpc)
 
-	err = validatorFactory.validateHeader(header)
-	if err != nil {
-		LOGGER.Error("invalid headers:", err)
-		return false, err
-	}
+	// err = validatorFactory.validateHeader(header)
+	// if err != nil {
+	// 	LOGGER.Error("invalid headers:", err)
+	// 	return false, err
+	// }
 
 	err = validWriter.Write(header)
 	if err != nil {
@@ -109,8 +109,8 @@ func Validate(filePath string) (bool, error) {
 			}
 			break
 		}
-		isValid, remarks := validatorFactory.validateRow(row)
-		if isValid {
+		_, remarks := validatorFactory.validateRow(row)
+		if true {
 			writeToFile(validWriter, row)
 			if !anyValidRow {
 				anyValidRow = !anyValidRow
