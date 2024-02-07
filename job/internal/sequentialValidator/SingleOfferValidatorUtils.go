@@ -10,6 +10,27 @@ import (
 
 var headerLength = 9
 
+type OfferColumns struct {
+	PartnerLoanId     string ` validate:"required"`
+	OfferID           string `validate:"required"`
+	CreditLimit       string ` validate:"required"`
+	MinTenure         string `validate:"required"`
+	MaxTenure         string `validate:"required"`
+	ROI               string `validate:"required"`
+	PreferredTenure   string `validate:"required"`
+	DateOfOffer       string `validate:"required,IsValidDate"`
+	ExpiryDateOfOffer string `validate:"required,IsValidDate"`
+	PF                string `validate:"ValidatePf"`
+}
+
+func ValidatePf(fl validator.FieldLevel) bool {
+	Pf := fl.Field().Float()
+	if LPC == "ANG" || LPC == "GRO" {
+		return Pf != 0.0
+	}
+	return Pf == 0.0
+}
+
 // Validation for each row
 func (f *SingleOfferValidatorFactory) validateRow(row []string) (isValid bool, remarks string) {
 	// Validate Number of fields in each row to be 2
@@ -17,32 +38,35 @@ func (f *SingleOfferValidatorFactory) validateRow(row []string) (isValid bool, r
 	if len(row) != headerLength {
 		return false, "Invalid number of fields present in the row"
 	}
-	// Validate the two fields to be not empty
-	if len(row[0]) == 0 {
-		remarks_list = append(remarks_list, "partner_loan_id cannot be empty")
+
+	for i := 0; i < len(row); i++ {
+		if len(row[i]) == 0 {
+			remarks_list = append(remarks_list, "Any field cannot be empty")
+			break
+		}
 	}
-	if len(row[1]) == 0 {
-		remarks_list = append(remarks_list, "offer_details cannot be empty")
-	}
+
 	if len(remarks_list) != 0 {
 		return false, strings.Join(remarks_list, ";")
 	}
 
-	var offerDetails []OfferDetail
-	if err := json.Unmarshal([]byte(row[1]), &offerDetails); err != nil {
-		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
-		return len(remarks_list) == 0, strings.Join(remarks_list, ";")
-	}
-	// Validation for multiple elements in the root list
-	if len(offerDetails) != 1 {
-		return false, "Invalid Number of elements at the root list"
+	offerColumns := OfferColumns{
+		PartnerLoanId:     row[0],
+		OfferID:           row[1],
+		CreditLimit:       row[2],
+		MinTenure:         row[3],
+		MaxTenure:         row[4],
+		ROI:               row[5],
+		PreferredTenure:   row[6],
+		DateOfOffer:       row[7],
+		ExpiryDateOfOffer: row[8],
 	}
 
 	validate := validator.New()
 	validate.RegisterValidation("IsValidDate", IsValidDate)
-	validate.RegisterValidation("ValidLimitAmount", ValidLimitAmount)
-	validate.RegisterValidation("ValidCreditLimit", ValidCreditLimit)
-	err := validate.Struct(offerDetails[0])
+	validate.RegisterValidation("ValidatePf", ValidatePf)
+
+	err := validate.Struct(offerColumns)
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
 			remarks_list = append(remarks_list, fmt.Sprintf("Field: %s, Error: %s", e.Field(), e.Tag()))
