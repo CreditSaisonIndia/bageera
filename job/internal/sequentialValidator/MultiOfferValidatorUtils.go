@@ -3,6 +3,7 @@ package sequentialValidator
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,7 +20,7 @@ type OfferInfo struct {
 	CreditLimit        float64 `json:"credit_limit" validate:"ValidCreditLimit"`
 	LimitAmount        float64 `json:"limit_amount" validate:"ValidLimitAmount"`
 	OfferID            string  `json:"offer_id" validate:"required"`
-	ROI                string  `json:"roi" validate:"required"`
+	ROI                string  `json:"roi" validate:"required,ValidROI"`
 }
 
 type OfferDetail struct {
@@ -55,6 +56,12 @@ func ValidCreditLimit(fl validator.FieldLevel) bool {
 		return CreditLimit != 0.0
 	}
 	return CreditLimit == 0.0
+}
+
+func ValidROI(fl validator.FieldLevel) bool {
+	Roi := fl.Field().String()
+	_, err := strconv.ParseFloat(Roi, 64)
+	return err != nil
 }
 
 // Validation for each row
