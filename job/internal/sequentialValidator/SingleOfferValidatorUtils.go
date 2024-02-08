@@ -88,7 +88,7 @@ func InitializeOfferColumns(row []string) (*OfferColumns, string) {
 }
 
 // Validation for each row
-func (f *SingleOfferValidatorFactory) validateRow(row []string) (isValid bool, remarks string) {
+func (f *ColumnOfferValidatorFactory) validateRow(row []string) (isValid bool, remarks string) {
 	// Validate Number of fields in each row to be 2
 	var remarks_list []string
 	if len(row) != headerLength {
@@ -124,7 +124,7 @@ func (f *SingleOfferValidatorFactory) validateRow(row []string) (isValid bool, r
 	return len(remarks_list) == 0, strings.Join(remarks_list, ";")
 }
 
-func (f *SingleOfferValidatorFactory) validateHeader(headers []string) error {
+func (f *ColumnOfferValidatorFactory) validateHeader(headers []string) error {
 	if LPC == "ANG" || LPC == "GRO" {
 		headerLength = 10
 	}
