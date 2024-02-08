@@ -2,6 +2,7 @@ package sequentialValidator
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -10,16 +11,16 @@ import (
 var headerLength = 9
 
 type OfferColumns struct {
-	PartnerLoanId     string ` validate:"required"`
-	OfferID           string `validate:"required"`
-	CreditLimit       string ` validate:"required"`
-	MinTenure         string `validate:"required"`
-	MaxTenure         string `validate:"required"`
-	ROI               string `validate:"required"`
-	PreferredTenure   string `validate:"required"`
-	DateOfOffer       string `validate:"required,IsValidDate"`
-	ExpiryDateOfOffer string `validate:"required,IsValidDate"`
-	PF                string `validate:"ValidatePf"`
+	PartnerLoanId     string  ` validate:"required"`
+	OfferID           string  `validate:"required"`
+	CreditLimit       float64 ` validate:"required"`
+	MinTenure         int     `validate:"required"`
+	MaxTenure         int     `validate:"required"`
+	ROI               float64 `validate:"required"`
+	PreferredTenure   int     `validate:"required"`
+	DateOfOffer       string  `validate:"required,IsValidDate"`
+	ExpiryDateOfOffer string  `validate:"required,IsValidDate"`
+	PF                float64 `validate:"ValidatePf"`
 }
 
 func ValidatePf(fl validator.FieldLevel) bool {
@@ -28,6 +29,62 @@ func ValidatePf(fl validator.FieldLevel) bool {
 		return Pf != 0.0
 	}
 	return Pf == 0.0
+}
+
+func InitializeOfferColumns(row []string) (*OfferColumns, string) {
+
+	var remarks_list []string
+
+	float64CreditLimit, err := strconv.ParseFloat(row[2], 64)
+	if err != nil {
+		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
+		// LOGGER.Error("Error parsing CreditLimit:", err)
+	}
+
+	intMinTenure, err := strconv.Atoi(row[3])
+	if err != nil {
+		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
+		// LOGGER.Error("Error parsing MinTenure:", err)
+	}
+
+	intMaxTenure, err := strconv.Atoi(row[4])
+	if err != nil {
+		// LOGGER.Error("Error parsing MaxTenure:", err)
+		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
+	}
+
+	floatRoi, err := strconv.ParseFloat(row[5], 64)
+	if err != nil {
+		// LOGGER.Error("Error parsing Roi:", err)
+		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
+	}
+
+	intPreferredTenure, err := strconv.Atoi(row[6])
+	if err != nil {
+		// LOGGER.Error("Error parsing PreferredTenure:", err)
+		remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
+	}
+
+	offerColumns := OfferColumns{
+		PartnerLoanId:     row[0],
+		OfferID:           row[1],
+		CreditLimit:       float64CreditLimit,
+		MinTenure:         intMinTenure,
+		MaxTenure:         intMaxTenure,
+		ROI:               floatRoi,
+		PreferredTenure:   intPreferredTenure,
+		DateOfOffer:       row[7],
+		ExpiryDateOfOffer: row[8],
+	}
+	if LPC == "ANG" || LPC == "GRO" {
+		float64Pf, err := strconv.ParseFloat(row[9], 64)
+		if err != nil {
+			// LOGGER.Error("Error parsing Pf:", err)
+			remarks_list = append(remarks_list, fmt.Sprintf("Error: %s", err))
+		}
+		offerColumns.PF = float64Pf
+	}
+	return &offerColumns, strings.Join(remarks_list, ";")
 }
 
 // Validation for each row
@@ -48,17 +105,9 @@ func (f *SingleOfferValidatorFactory) validateRow(row []string) (isValid bool, r
 		return false, strings.Join(remarks_list, ";")
 	}
 
-	offerColumns := OfferColumns{
-		PartnerLoanId:     row[0],
-		OfferID:           row[1],
-		CreditLimit:       row[2],
-		MinTenure:         row[3],
-		MaxTenure:         row[4],
-		ROI:               row[5],
-		PreferredTenure:   row[6],
-		DateOfOffer:       row[7],
-		ExpiryDateOfOffer: row[8],
-		PF:                row[9],
+	offerColumns, initRemarks := InitializeOfferColumns(row)
+	if len(initRemarks) != 0 {
+		return false, initRemarks
 	}
 
 	validate := validator.New()
