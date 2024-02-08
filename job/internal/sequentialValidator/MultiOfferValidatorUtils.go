@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -42,7 +43,7 @@ func IsValidDate(fl validator.FieldLevel) bool {
 
 func ValidLimitAmount(fl validator.FieldLevel) bool {
 	LimitAmount := fl.Field().Float()
-	if LPC == "PSB" {
+	if utils.GetLPC() == "PSB" {
 		return LimitAmount == 0.0
 	}
 	return LimitAmount != 0.0
@@ -50,7 +51,7 @@ func ValidLimitAmount(fl validator.FieldLevel) bool {
 
 func ValidCreditLimit(fl validator.FieldLevel) bool {
 	CreditLimit := fl.Field().Float()
-	if LPC == "PSB" {
+	if utils.GetLPC() == "PSB" {
 		return CreditLimit != 0.0
 	}
 	return CreditLimit == 0.0

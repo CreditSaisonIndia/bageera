@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -25,7 +26,7 @@ type OfferColumns struct {
 
 func ValidatePf(fl validator.FieldLevel) bool {
 	Pf := fl.Field().Float()
-	if LPC == "ANG" || LPC == "GRO" {
+	if utils.GetLPC() == "ANG" || utils.GetLPC() == "GRO" {
 		return Pf != 0.0
 	}
 	return Pf == 0.0
@@ -76,7 +77,7 @@ func InitializeOfferColumns(row []string) (*OfferColumns, string) {
 		DateOfOffer:       row[7],
 		ExpiryDateOfOffer: row[8],
 	}
-	if LPC == "ANG" || LPC == "GRO" {
+	if utils.GetLPC() == "ANG" || utils.GetLPC() == "GRO" {
 		float64Pf, err := strconv.ParseFloat(row[9], 64)
 		if err != nil {
 			// LOGGER.Error("Error parsing Pf:", err)
@@ -126,7 +127,7 @@ func (f *ColumnOfferValidatorFactory) validateRow(row []string) (isValid bool, r
 }
 
 func (f *ColumnOfferValidatorFactory) validateHeader(headers []string) error {
-	if LPC == "ANG" || LPC == "GRO" {
+	if utils.GetLPC() == "ANG" || utils.GetLPC() == "GRO" {
 		headerLength = 10
 	}
 	// validate no of columns are present in the header
@@ -160,7 +161,7 @@ func (f *ColumnOfferValidatorFactory) validateHeader(headers []string) error {
 	if headers[8] != "expiry_date_of_offer" {
 		return fmt.Errorf("invalid header column - %s", headers[8])
 	}
-	if LPC == "ANG" || LPC == "GRO" {
+	if utils.GetLPC() == "ANG" || utils.GetLPC() == "GRO" {
 		if headers[9] != "pf" {
 			return fmt.Errorf("invalid header column - %s", headers[9])
 		}

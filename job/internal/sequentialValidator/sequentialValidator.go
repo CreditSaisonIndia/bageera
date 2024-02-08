@@ -11,11 +11,8 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
-	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 )
-
-var LPC = serviceConfig.ApplicationSetting.Lpc
 
 func Validate(filePath string) (bool, error) {
 	LOGGER := customLogger.GetLogger()
@@ -77,7 +74,7 @@ func Validate(filePath string) (bool, error) {
 		return false, err
 	}
 
-	validatorFactory := GetOfferValidatorFactory(serviceConfig.ApplicationSetting.Lpc)
+	validatorFactory := GetOfferValidatorFactory(utils.GetLPC())
 
 	err = validatorFactory.validateHeader(header)
 	if err != nil {
