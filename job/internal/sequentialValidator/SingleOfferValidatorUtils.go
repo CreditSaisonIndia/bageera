@@ -1,7 +1,6 @@
 package sequentialValidator
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
