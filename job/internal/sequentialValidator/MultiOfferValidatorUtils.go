@@ -57,7 +57,7 @@ func ValidCreditLimit(fl validator.FieldLevel) bool {
 }
 
 // Validation for each row
-func (f *MultiOfferValidatorFactory) validateRow(row []string) (isValid bool, remarks string) {
+func (f *JsonOfferValidatorFactory) validateRow(row []string) (isValid bool, remarks string) {
 	// Validate Number of fields in each row to be 2
 	var remarks_list []string
 	if len(row) != 2 {
@@ -114,7 +114,7 @@ func (f *MultiOfferValidatorFactory) validateRow(row []string) (isValid bool, re
 // 	return nil
 // }
 
-func (f *MultiOfferValidatorFactory) validateHeader(headers []string) error {
+func (f *JsonOfferValidatorFactory) validateHeader(headers []string) error {
 	// validate 2 columns are present in the header
 	if len(headers) != 2 {
 		return fmt.Errorf("invalid headers length")
