@@ -61,7 +61,7 @@ func ValidCreditLimit(fl validator.FieldLevel) bool {
 func ValidROI(fl validator.FieldLevel) bool {
 	Roi := fl.Field().String()
 	_, err := strconv.ParseFloat(Roi, 64)
-	return err != nil
+	return err == nil
 }
 
 // Validation for each row
@@ -96,6 +96,7 @@ func (f *JsonOfferValidatorFactory) validateRow(row []string) (isValid bool, rem
 	validate.RegisterValidation("IsValidDate", IsValidDate)
 	validate.RegisterValidation("ValidLimitAmount", ValidLimitAmount)
 	validate.RegisterValidation("ValidCreditLimit", ValidCreditLimit)
+	validate.RegisterValidation("ValidROI", ValidROI)
 	err := validate.Struct(offerDetails[0])
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
