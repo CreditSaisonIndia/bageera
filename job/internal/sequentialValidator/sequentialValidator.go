@@ -133,8 +133,8 @@ func Validate(filePath string) (bool, error) {
 	LOGGER.Info(fmt.Sprintf("Time taken: %.2f minutes\n", elapsedMinutes))
 
 	if !anyValidRow {
-		LOGGER.Error("No valid rows presenet after validation")
-		awsClient.SendAlertMessage("FAILED", "No valid rows presenet after validation")
+		LOGGER.Error("No valid rows present after validation")
+		awsClient.SendAlertMessage("FAILED", "No valid rows present after validation")
 	} else if anyInvalidRow {
 		LOGGER.Info("Invalid rows found after validation")
 		awsClient.SendAlertMessage("PARTIAL FAILURE", "Invalid rows found after validation")
