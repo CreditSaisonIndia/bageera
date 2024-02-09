@@ -212,7 +212,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 func getParserType() *parser.Parser {
 
 	switch serviceConfig.ApplicationSetting.Lpc {
-	case "PSB", "ONL":
+	case "PSB", "ONL", "SPM":
 		psbOfferParser := &parserIml.PsbOfferParser{}
 		return parser.SetParser(psbOfferParser)
 	case "GRO", "ANG":
