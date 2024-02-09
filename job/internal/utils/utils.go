@@ -53,6 +53,20 @@ func GetInvalidBaseDir() string {
 	return GetMetadataUsecaseDir("invalid")
 }
 
+func GetRelativeInvalidBaseDir() string {
+	return GetRelativeMetadataUsecaseDir("invalid")
+}
+
+func GetRelativeMetadataUsecaseDir(usecaseDir string) string {
+	objectKey := GetMetadataObjectKey()
+	dirPath := filepath.Dir(objectKey)
+	// Extract the fileName without extension
+	fileName := filepath.Base(objectKey)
+	fileNameWithoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]
+	return filepath.Join(dirPath, fileNameWithoutExt, usecaseDir)
+
+}
+
 func GetMetadataObjectKey() string {
 	objectKey := serviceConfig.ApplicationSetting.ObjectKey
 
@@ -68,6 +82,23 @@ func GetMetadataObjectKey() string {
 	fileName := filepath.Base(objectKey)
 
 	return filepath.Join(dirPath, fileName)
+
+}
+
+func GetJobTypeFromPath() string {
+	path := serviceConfig.ApplicationSetting.ObjectKey
+	parts := strings.Split(path, "/")
+
+	// Iterate through the parts to find "insert"
+	var extractedPart string
+
+	for _, part := range parts {
+		if part == "insert" {
+			extractedPart = part
+			break
+		}
+	}
+	return extractedPart
 
 }
 
@@ -121,4 +152,8 @@ func GetFileNameFromPath(path string) (string, string) {
 func PrettyPrint(i interface{}) string {
 	s, _ := json.MarshalIndent(i, "", "\t")
 	return string(s)
+}
+
+func GetLPC() string {
+	return serviceConfig.ApplicationSetting.Lpc
 }

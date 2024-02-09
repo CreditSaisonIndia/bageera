@@ -57,7 +57,7 @@ Resources:
               S3Key:
                 Rules:
                   - Name: prefix
-                    Value: offer/lpc
+                    Value: offer/insert/lpc
                   - Name: suffix
                     Value: .csv
                     

@@ -23,6 +23,7 @@ type InitialOffer struct {
 	Remarks       sql.NullString  `json:"remarks"`
 	MachineError  json.RawMessage `gorm:"type:jsonb" json:"machine_error"`
 	Attempt       int             `json:"attempt"`
+	ExpiryDate    time.Time       `json:"expiry_date"`
 }
 
 type Tabler interface {

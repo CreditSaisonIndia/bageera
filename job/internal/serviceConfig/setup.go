@@ -20,6 +20,7 @@ type Application struct {
 	BucketName       string
 	ObjectKey        string
 	InvalidObjectKey string
+	JobType          string
 }
 
 var ApplicationSetting = &Application{}
@@ -41,6 +42,7 @@ type Database struct {
 	TablePrefix      string
 	Port             string
 	MigrationVersion int
+	SslMode          string
 }
 
 var DatabaseSetting = &Database{}
@@ -81,6 +83,7 @@ func SetUp(env string) {
 		mapTo("application", ApplicationSetting)
 		mapTo("server", ServerSetting)
 		mapTo("database", DatabaseSetting)
+		PrintSettings()
 		break
 	// Add cases for other days as needed
 	default:

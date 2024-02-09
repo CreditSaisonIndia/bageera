@@ -33,7 +33,7 @@ def lambda_handler(event, context):
         'event': 'S3_UPLOAD',
         'bucketName': bucket_name,
         'objectKey': object_key,
-        'lpc':path_elements[2],
+        'lpc':path_elements[3],
         'fileName':file_name,
         'environment':ENV,
         'requestQueueUrl':PQ_JOB_QUEUE_URL,
