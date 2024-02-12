@@ -30,6 +30,7 @@ func main() {
 			continue
 		}
 		// You may also want to introduce a delay between consecutive runs
+		LOGGER.Info("******RETURN  FROM Queue consumer*******")
 		time.Sleep(5 * time.Second)
 		LOGGER.Info("Retrying...")
 	}

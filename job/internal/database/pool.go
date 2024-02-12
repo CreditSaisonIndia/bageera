@@ -34,18 +34,15 @@ type cachedCredentials struct {
 
 type DBConfig struct {
 	Host        string
-	Port        int
+	Port        string
 	User        string
 	Password    string
 	SSLMode     string
 	Name        string
-	MinConn     int
-	MaxConn     int
-	LifeTime    string
-	IdleTime    string
-	LogLevel    string
 	Region      string
 	IAMRoleAuth bool
+	Env         string
+	SearchPath  string
 }
 
 var pgxPool *pgxpool.Pool
@@ -80,58 +77,59 @@ func (p *Peer) GetDBPool(ctx context.Context, cfg DBConfig, sess *session.Sessio
 
 	poolCfg.MaxConnIdleTime = 5 * time.Minute
 	poolCfg.MaxConnLifetime = 13 * time.Minute
-	poolCfg.MaxConns = 20
-	poolCfg.MinConns = 5
+	poolCfg.MaxConns = 30
+	poolCfg.MinConns = 15
 
-	poolCfg.BeforeConnect = func(ctx context.Context, config *pgx.ConnConfig) error {
-		// p.Mu.Unlock()
-		// defer p.Mu.Unlock()
-		p.Logger.Info("RDS Credential beforeConnect(), creating new credential")
-		if p.isTokenExpired() {
-			p.Logger.Info("********** EXPIRED HENCE GETTING TOKEN AGAIN *********")
-			token, err := p.getCredential(poolCfg, cfg, sess)
-			if err != nil {
-				return err
+	if cfg.Env != "local" {
+		poolCfg.BeforeConnect = func(ctx context.Context, config *pgx.ConnConfig) error {
+			// p.Mu.Unlock()
+			// defer p.Mu.Unlock()
+			p.Logger.Info("RDS Credential beforeConnect(), creating new credential")
+			if p.isTokenExpired() {
+				p.Logger.Info("********** EXPIRED HENCE GETTING TOKEN AGAIN *********")
+				token, err := p.getCredential(poolCfg, cfg, sess)
+				if err != nil {
+					return err
+				}
+
+				config.User = cfg.User
+				config.Password = token
+				config.Host = cfg.Host
+				config.Database = cfg.Name
+				config.Port = 5432
+				cachedCredentials := cachedCredentials{
+					user:     cfg.User,
+					password: token,
+					host:     cfg.Host,
+					port:     5432,
+				}
+				p.cachedCredentials = cachedCredentials
+				p.expire = time.Now()
+			} else {
+				p.Logger.Info("********** NOT EXPIRED HENCE NOT GETTING TOKEN ************")
+				config.User = p.cachedCredentials.user
+				config.Password = p.cachedCredentials.password
+				config.Host = p.cachedCredentials.host
+				config.Database = cfg.Name
+				config.Port = 5432
 			}
 
-			config.User = cfg.User
-			config.Password = token
-			config.Host = cfg.Host
-			config.Database = cfg.Name
-			config.Port = 5432
-			cachedCredentials := cachedCredentials{
-				user:     cfg.User,
-				password: token,
-				host:     cfg.Host,
-				port:     5432,
-			}
-			p.cachedCredentials = cachedCredentials
-			p.expire = time.Now()
-		} else {
-			p.Logger.Info("********** NOT EXPIRED HENCE NOT GETTING TOKEN ************")
-			config.User = p.cachedCredentials.user
-			config.Password = p.cachedCredentials.password
-			config.Host = p.cachedCredentials.host
-			config.Database = cfg.Name
-			config.Port = 5432
+			// if time.Since(p.lastTokenTime) > 13*time.Minute {
+			// 	p.Logger.Info("TIME LIMIT REACHED ")
+			// 	newPassword, err := p.getCredential(poolCfg, cfg, sess)
+			// 	if err != nil {
+			// 		return err
+			// 	}
+			// 	p.Mu.Lock()
+			// 	config.Password = newPassword
+			// 	p.lastTokenTime = time.Now()
+			// 	p.Mu.Unlock()
+			// 	p.Logger.Info("BeforeConnect | CONNECTION STRING: ", poolCfg.ConnConfig.ConnString())
+			// }
+
+			return nil
 		}
-
-		// if time.Since(p.lastTokenTime) > 13*time.Minute {
-		// 	p.Logger.Info("TIME LIMIT REACHED ")
-		// 	newPassword, err := p.getCredential(poolCfg, cfg, sess)
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	p.Mu.Lock()
-		// 	config.Password = newPassword
-		// 	p.lastTokenTime = time.Now()
-		// 	p.Mu.Unlock()
-		// 	p.Logger.Info("BeforeConnect | CONNECTION STRING: ", poolCfg.ConnConfig.ConnString())
-		// }
-
-		return nil
 	}
-
 	p.Logger.Info("GetDBPool | CONNECTION STRING: ", poolCfg.ConnConfig.ConnString())
 	pool, err := pgxpool.ConnectConfig(ctx, poolCfg)
 	if err != nil {
@@ -158,6 +156,6 @@ func (p *Peer) getCredential(poolCfg *pgxpool.Config, cfg DBConfig, sess *sessio
 }
 
 func getDBURL(cfg DBConfig) string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s&search_path=scarlet",
-		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.SSLMode)
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=%s",
+		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.SSLMode, cfg.SearchPath)
 }

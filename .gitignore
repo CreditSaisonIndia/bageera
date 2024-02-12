@@ -56,3 +56,5 @@ __pycache__/
 venv/
 job/offer
 job/app
+job/metadata
+.vscode

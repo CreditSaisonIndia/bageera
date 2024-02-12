@@ -1,22 +1,28 @@
 package insertion
 
 import (
-	"log"
 	"os"
 	"sync"
 
+	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/producer"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 )
 
-func BeginInsertion() {
+type Insertion struct {
+}
+
+func (insertion *Insertion) Execute(path string) {
 	// Create a wait group to wait for all workers to finish
+
+	LOGGER := customLogger.GetLogger()
+	LOGGER.Info("***** STARTING INSERTION JOB *****")
 	var wg sync.WaitGroup
 	var consumerWg sync.WaitGroup
 	outputChunkDir := utils.GetChunksDir()
 	files, err := os.ReadDir(outputChunkDir)
 	if err != nil {
-		log.Println("Error reading directory:", err)
+		LOGGER.Error("Error reading directory:", err)
 		return
 	}
 
