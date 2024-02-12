@@ -87,7 +87,7 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 func getReaderType(csvReader *csv.Reader) *reader.Reader {
 
 	switch serviceConfig.ApplicationSetting.Lpc {
-	case "PSB", "ONL":
+	case "PSB", "ONL", "SPM":
 		psbOfferCsvReader := &readerIml.PsbOfferCsvReader{}
 
 		return reader.SetReader(psbOfferCsvReader)

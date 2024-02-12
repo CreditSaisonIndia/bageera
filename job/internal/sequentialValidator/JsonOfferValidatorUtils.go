@@ -3,9 +3,11 @@ package sequentialValidator
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/go-playground/validator/v10"
 )
 
@@ -18,7 +20,7 @@ type OfferInfo struct {
 	CreditLimit        float64 `json:"credit_limit" validate:"ValidCreditLimit"`
 	LimitAmount        float64 `json:"limit_amount" validate:"ValidLimitAmount"`
 	OfferID            string  `json:"offer_id" validate:"required"`
-	ROI                string  `json:"roi" validate:"required"`
+	ROI                string  `json:"roi" validate:"required,ValidROI"`
 }
 
 type OfferDetail struct {
@@ -42,7 +44,7 @@ func IsValidDate(fl validator.FieldLevel) bool {
 
 func ValidLimitAmount(fl validator.FieldLevel) bool {
 	LimitAmount := fl.Field().Float()
-	if LPC == "PSB" {
+	if utils.GetLPC() == "PSB" {
 		return LimitAmount == 0.0
 	}
 	return LimitAmount != 0.0
@@ -50,14 +52,20 @@ func ValidLimitAmount(fl validator.FieldLevel) bool {
 
 func ValidCreditLimit(fl validator.FieldLevel) bool {
 	CreditLimit := fl.Field().Float()
-	if LPC == "PSB" {
+	if utils.GetLPC() == "PSB" {
 		return CreditLimit != 0.0
 	}
 	return CreditLimit == 0.0
 }
 
+func ValidROI(fl validator.FieldLevel) bool {
+	Roi := fl.Field().String()
+	_, err := strconv.ParseFloat(Roi, 64)
+	return err == nil
+}
+
 // Validation for each row
-func (f *MultiOfferValidatorFactory) validateRow(row []string) (isValid bool, remarks string) {
+func (f *JsonOfferValidatorFactory) validateRow(row []string) (isValid bool, remarks string) {
 	// Validate Number of fields in each row to be 2
 	var remarks_list []string
 	if len(row) != 2 {
@@ -88,6 +96,7 @@ func (f *MultiOfferValidatorFactory) validateRow(row []string) (isValid bool, re
 	validate.RegisterValidation("IsValidDate", IsValidDate)
 	validate.RegisterValidation("ValidLimitAmount", ValidLimitAmount)
 	validate.RegisterValidation("ValidCreditLimit", ValidCreditLimit)
+	validate.RegisterValidation("ValidROI", ValidROI)
 	err := validate.Struct(offerDetails[0])
 	if err != nil {
 		for _, e := range err.(validator.ValidationErrors) {
@@ -114,7 +123,7 @@ func (f *MultiOfferValidatorFactory) validateRow(row []string) (isValid bool, re
 // 	return nil
 // }
 
-func (f *MultiOfferValidatorFactory) validateHeader(headers []string) error {
+func (f *JsonOfferValidatorFactory) validateHeader(headers []string) error {
 	// validate 2 columns are present in the header
 	if len(headers) != 2 {
 		return fmt.Errorf("invalid headers length")

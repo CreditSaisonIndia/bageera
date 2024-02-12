@@ -5,15 +5,15 @@ type OfferValidatorFactory interface {
 	validateRow(row []string) (isValid bool, remarks string)
 }
 
-type MultiOfferValidatorFactory struct{}
+type JsonOfferValidatorFactory struct{}
 
-type SingleOfferValidatorFactory struct{}
+type ColumnOfferValidatorFactory struct{}
 
 func GetOfferValidatorFactory(lpc string) OfferValidatorFactory {
 	switch lpc {
 	case "PSB", "ONL", "SPM":
-		return &MultiOfferValidatorFactory{}
+		return &JsonOfferValidatorFactory{}
 	default:
-		return &SingleOfferValidatorFactory{}
+		return &ColumnOfferValidatorFactory{}
 	}
 }

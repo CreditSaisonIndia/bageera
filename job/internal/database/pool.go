@@ -77,8 +77,8 @@ func (p *Peer) GetDBPool(ctx context.Context, cfg DBConfig, sess *session.Sessio
 
 	poolCfg.MaxConnIdleTime = 5 * time.Minute
 	poolCfg.MaxConnLifetime = 13 * time.Minute
-	poolCfg.MaxConns = 20
-	poolCfg.MinConns = 5
+	poolCfg.MaxConns = 30
+	poolCfg.MinConns = 15
 
 	if cfg.Env != "local" {
 		poolCfg.BeforeConnect = func(ctx context.Context, config *pgx.ConnConfig) error {
