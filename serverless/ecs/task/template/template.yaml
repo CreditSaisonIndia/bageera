@@ -150,3 +150,8 @@ Outputs:
     Description: ARN of the ECS Task Definition
     Export:
       Name: !Sub ${TaskName}-definition-Arn
+  ServiceArn:
+    Value: !Ref Service
+    Description: ARN of the ECS Service
+    Export:
+      Name: !Sub ${TaskName}-service-Arn
