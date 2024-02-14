@@ -55,6 +55,7 @@ Resources:
       Policies:
         - AWSLambdaBasicExecutionRole
         - AmazonECS_FullAccess
+        - AmazonEventBridgeFullAccess
       Environment:
         Variables:
           BAGEERA_CLUSTER_ARN: !Ref BageeraClusterArn

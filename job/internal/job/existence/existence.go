@@ -112,7 +112,7 @@ func (e *Existence) DoInsert() error {
 	insertionJob := &insertion.Insertion{}
 	insertionJob.SetFileNamePattern(`.*_\d+_exist_success\.csv`)
 	jobStrategy := job.SetStrategy(insertionJob)
-	jobStrategy.ExecuteStrategy(serviceConfig.ApplicationSetting.ObjectKey, "meta_data_initial_offer")
+	jobStrategy.ExecuteStrategy(serviceConfig.ApplicationSetting.ObjectKey, "initial_offer_history")
 	pool.Close()
 	return nil
 }

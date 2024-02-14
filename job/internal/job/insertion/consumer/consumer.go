@@ -97,6 +97,10 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 	conn, err := database.GetPgxPool().Acquire(context.Background())
 	if err != nil {
 		LOGGER.Error("Error Worker : "+fileName+" ------>  accquire ", err)
+		for _, offer := range offers {
+			parser.WriteOfferToCsv(failureWriter, &offer)
+		}
+		LOGGER.Error("Error : Worker " + fileName + " ------> Erroed out. Hence written all offers to failure file")
 		<-ConsumerConcurrencyCh
 		return
 	}

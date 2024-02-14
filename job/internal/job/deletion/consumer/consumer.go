@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/database"
@@ -89,6 +88,20 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 	// ... (existing code)
 	offersLength := len(*offersPointer)
 	offers := *offersPointer
+
+	LOGGER.Info("Worker : " + fileName + "--->>>> GETTTING DB")
+	// Now you can use the pool to get a database connection
+	conn, err := database.GetPgxPool().Acquire(context.Background())
+	if err != nil {
+		LOGGER.Error("Error Worker : "+fileName+" ------>  accquire ", err)
+		for _, offer := range offers {
+			parser.WriteOfferToCsv(failureWriter, &offer)
+		}
+		LOGGER.Error("Error : Worker " + fileName + " ------> Erroed out. Hence written all offers to failure file")
+		<-ConsumerConcurrencyCh
+		return
+	}
+
 	for i := 0; i < offersLength; i += chunkSize {
 		chunkNumber++
 		var (
@@ -129,18 +142,6 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		// 	"attempt = EXCLUDED.attempt,expiry_date = EXCLUDED.expiry_date",
 		// 	strings.Join(col, ", "), strings.Join(placeholders, ","))
 		query := fmt.Sprintf("DELETE FROM initial_offer WHERE partner_loan_id IN (%s) RETURNING partner_loan_id", strings.Join(placeholders, ","))
-
-		LOGGER.Info("Worker : " + fileName + "--->>>> GETTTING DB ----->>>")
-		// Now you can use the pool to get a database connection
-		conn, err := database.GetPgxPool().Acquire(context.Background())
-		if err != nil {
-			LOGGER.Error("Error Worker : "+fileName+" ------>  accquire ", err)
-			for _, offer := range chunk {
-				parser.WriteOfferToCsv(failureWriter, &offer)
-			}
-			<-ConsumerConcurrencyCh
-			return
-		}
 
 		tx, err := conn.Begin(context.Background())
 		if err != nil {
@@ -196,12 +197,11 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 
 		LOGGER.Info("------------DELETED--------------")
 		LOGGER.Info("fileName : ", chunkFileNameWithoutExtension, "---->>>>>>CHUNK NUMBER : ", chunkNumber)
-		LOGGER.Info("------------RELEASING CONNECTION--------------")
-		conn.Release()
-		time.Sleep(5 * time.Second)
+
 		LOGGER.Info("******** WORKER ", fileName, "  | WARMING UP TO WORK ON NEXT CHUNK ---> ", chunkNumber, " ********")
 	}
-
+	LOGGER.Info("------------RELEASING CONNECTION--------------")
+	conn.Release()
 	LOGGER.Info("Worker finished :", fileName, "------> Deleted ", chunkNumber, " times")
 
 	<-ConsumerConcurrencyCh
