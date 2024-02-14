@@ -53,25 +53,20 @@ Resources:
   EventBridgeRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: Rule to trigger Lambda on S3 upload
+      Description: Rule to Trigger Lambda on S3 upload
       EventBusName: default
       EventPattern:
         source:
           - aws.s3
         detail-type:
-          - AWS API Call via CloudTrail
+          - Object Created
         detail:
-          eventSource:
-            - s3.amazonaws.com
-          eventName:
-            - PutObject
-            - CopyObject
-            - CompleteMultipartUpload
-          requestParameters:
-            bucketName:
+          bucket:
+            name:
               - !Ref BucketName
+          object:
             key:
-              - wildcard: offer/insert/lpc/*.csv
+              - wildcard: offer/insert/lpc/*/*/*.csv
       State: "ENABLED"
       Targets:
         - Arn: !GetAtt S3UploadEventTriggerFunction.Arn
