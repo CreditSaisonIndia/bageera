@@ -17,9 +17,8 @@ def lambda_handler(event, context):
     logger.info("Event from S3 : %s", json.dumps(event))    
     
     event_details = event['detail']
-    request_arameters = event_details['requestParameters']
-    bucket_name = request_arameters['bucketName']
-    object_key = request_arameters['key']
+    bucket_name = event_details['bucket']['name']
+    object_key = event_details['object']['key']
     
     logger.info("BUCKET NAME : %s", bucket_name)
     logger.info("OBJECT KEY : %s", object_key)
