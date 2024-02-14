@@ -27,6 +27,7 @@ Resources:
     Properties:
       Parameters:
         EnvironmentType: !Ref EnvironmentType
+        BucketName: !ImportValue pq-offer-bucket
       TemplateURL: ./template/template.yaml
 
 
