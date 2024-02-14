@@ -14,24 +14,11 @@ Parameters:
       - 'qa'
       - 'dev'
     Default: 'dev'
+  BucketName:
+    Description: Bucket Name
+    Type: String
 
 Resources:
-
-  pqOfferBucket:
-    Type: 'AWS::S3::Bucket'
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BucketName: !Sub 'pq-offer-bucket-${EnvironmentType}-${AWS::AccountId}-${AWS::Region}'
-      AccessControl: Private
-      # VersioningConfiguration:
-      #   Status: 'Enabled'
-      # BucketEncryption:
-      #   ServerSideEncryptionConfiguration:
-      #   - ServerSideEncryptionByDefault:
-      #       SSEAlgorithm: AES256
-
-
 
   S3UploadEventTriggerFunction:
     Dependson: pqOfferBucket
@@ -46,20 +33,7 @@ Resources:
         - AmazonSSMFullAccess
         - AmazonSNSFullAccess
         - AmazonS3FullAccess
-      Events:
-        s3Event:
-          Type: S3
-          Properties:
-            Bucket: !Ref pqOfferBucket
-            Events: 
-              - s3:ObjectCreated:*
-            Filter:
-              S3Key:
-                Rules:
-                  - Name: prefix
-                    Value: offer/insert/lpc
-                  - Name: suffix
-                    Value: .csv
+        - AmazonEventBridgeFullAccess
                     
       Environment:
         Variables:
@@ -75,15 +49,36 @@ Resources:
         Department: Tech
         Stage: LOS
 
-  S3EventTrigger:
-    DependsOn: S3UploadEventTriggerFunction
-    Type: 'AWS::Lambda::Permission'
+
+  EventBridgeRule:
+    Type: AWS::Events::Rule
     Properties:
-      Action: 'lambda:InvokeFunction'
+      Description: Rule to Trigger Lambda on S3 upload
+      EventBusName: default
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - Object Created
+        detail:
+          bucket:
+            name:
+              - !Ref BucketName
+          object:
+            key:
+              - wildcard: offer/insert/lpc/*/*/*.csv
+      State: "ENABLED"
+      Targets:
+        - Arn: !GetAtt S3UploadEventTriggerFunction.Arn
+          Id: "S3UploadEventTriggerFunctionId"
+
+  PermissionEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
       FunctionName: !Ref S3UploadEventTriggerFunction
-      Principal: 's3.amazonaws.com'
-      SourceAccount: !Ref 'AWS::AccountId'
-      SourceArn: !GetAtt pqOfferBucket.Arn
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt EventBridgeRule.Arn
 
 
 Outputs:

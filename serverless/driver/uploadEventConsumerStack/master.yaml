@@ -32,7 +32,6 @@ Resources:
         ServiceTags: !Join [ ',', [ bageera, Proton, Tech, LOS ] ]
         EnvironmentType: !Ref EnvironmentType
         BageeraClusterArn: !ImportValue bageeraEcsCluster-Arn
-        BageeraJobDefinitionArn: !ImportValue bageera-job-definition-Arn
         BageeraJobEcsSecurityGroupId: !ImportValue bageeraJobEcsSecurityGroupId
         AlertSnsDisplayName: 'pq-job-status-sns'
         AlertSnsTopicName: 'pq-job-status-sns-topic'
