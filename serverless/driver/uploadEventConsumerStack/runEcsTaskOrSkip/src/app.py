@@ -8,7 +8,7 @@ import os
 PQ_JOB_QUEUE_URL = os.getenv('PQ_JOB_QUEUE_URL')
 BAGEERA_CLUSTER_ARN = os.getenv('BAGEERA_CLUSTER_ARN')
 BAGEERA_ECS_JOB_SG_ID = os.getenv('BAGEERA_ECS_JOB_SG_ID')
-BAGEERA_JOB_DEFINITION_ARN = os.getenv('BAGEERA_JOB_DEFINITION_ARN')
+BAGEERA_JOB_DEFINITION_ARN = "bageera-job-definition"
 ENV = os.getenv('ENV')
 SERVICE_SUBNETS = os.getenv('SERVICE_SUBNETS')
 ALERT_SNS_ARN = os.getenv('ALERT_SNS')
@@ -84,7 +84,14 @@ def lambda_handler(event, context):
     task_definition_arn=BAGEERA_JOB_DEFINITION_ARN
 
     # Check if any tasks match the specified task definition ARN
-    matching_tasks = [task for task in tasks.get('taskArns', []) if ecs.describe_tasks(cluster=cluster, tasks=[task])['tasks'][0]['taskDefinitionArn'] == task_definition_arn]
+    # matching_tasks = [task for task in tasks.get('taskArns', []) if ecs.describe_tasks(cluster=cluster, tasks=[task])['tasks'][0]['taskDefinitionArn'].startswith(task_definition_arn)]
+    matching_tasks=[]
+    for task in tasks.get('taskArns', []):
+        task_description = ecs.describe_tasks(cluster=cluster, tasks=[task])['tasks'][0]
+        if task_definition_arn in task_description['taskDefinitionArn']:
+            matching_tasks.append(task)
+        
+    print(matching_tasks)
 
     if matching_tasks:
         print(f'Task definition {task_definition_arn} is already running. Skipping launch.')

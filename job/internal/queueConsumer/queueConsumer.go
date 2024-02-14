@@ -179,8 +179,6 @@ func Consume() error {
 
 			if allInvalidRows {
 				serviceConfig.PrintSettings()
-				LOGGER.Error("No valid rows present after validation")
-				awsClient.SendAlertMessage("FAILED", "No Valid rows present after validation")
 				LOGGER.Info("Starting invalid upload file Wait")
 				invalidGoroutinesWaitGroup := sync.WaitGroup{}
 				invalidGoroutinesWaitGroup.Add(1)
