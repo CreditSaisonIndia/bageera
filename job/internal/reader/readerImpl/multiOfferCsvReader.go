@@ -10,21 +10,21 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/model"
 )
 
-type PsbOfferCsvReader struct {
+type MultiOfferCsvReader struct {
 	header []string
 }
 
 // GetHeader implements reader.OfferReader.
-func (m *PsbOfferCsvReader) GetHeader() []string {
+func (m *MultiOfferCsvReader) GetHeader() []string {
 	return m.header
 }
 
 // SetHeader implements reader.OfferReader.
-func (m *PsbOfferCsvReader) SetHeader(header []string) {
+func (m *MultiOfferCsvReader) SetHeader(header []string) {
 	m.header = []string{"partner_loan_id", "offer_details"}
 }
 
-func (r *PsbOfferCsvReader) Read(csvReader *csv.Reader) (*[]model.BaseOffer, error) {
+func (r *MultiOfferCsvReader) Read(csvReader *csv.Reader) (*[]model.BaseOffer, error) {
 	LOGGER := customLogger.GetLogger()
 	var baseOfferArr []model.BaseOffer
 

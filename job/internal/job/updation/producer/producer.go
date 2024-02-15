@@ -1,7 +1,6 @@
 package producer
 
 import (
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"io"
@@ -12,9 +11,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job/updation/consumer"
-	"github.com/CreditSaisonIndia/bageera/internal/reader"
-	readerIml "github.com/CreditSaisonIndia/bageera/internal/reader/readerImpl"
-	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
+	read "github.com/CreditSaisonIndia/bageera/internal/reader"
 )
 
 var maxProducerGoroutines = 15
@@ -51,7 +48,7 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 		LOGGER.Error("Headers", header, err)
 	}
 
-	offerReader := getReaderType(csvReader)
+	offerReader := read.GetReaderType(csvReader)
 	offerReader.SetHeader(header)
 
 	offersPointer, err := offerReader.ReaderStrategy(csvReader)
@@ -82,24 +79,4 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	LOGGER.Info("Producer finished : ", filePath)
 	<-ProducerConcurrencyCh
 
-}
-
-func getReaderType(csvReader *csv.Reader) *reader.Reader {
-
-	switch serviceConfig.ApplicationSetting.Lpc {
-	case "PSB", "ONL":
-		psbOfferCsvReader := &readerIml.PsbOfferCsvReader{}
-
-		return reader.SetReader(psbOfferCsvReader)
-
-	case "GRO", "ANG":
-		groCsvOfferReader := &readerIml.GroCsvOfferReader{}
-
-		return reader.SetReader(groCsvOfferReader)
-
-	default:
-		singleOfferReader := &readerIml.SingleOfferReader{}
-
-		return reader.SetReader(singleOfferReader)
-	}
 }

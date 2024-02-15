@@ -5,7 +5,9 @@ import (
 	"strconv"
 
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
+	"github.com/CreditSaisonIndia/bageera/internal/job/common/parser/parserIml"
 	"github.com/CreditSaisonIndia/bageera/internal/model"
+	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 )
 
 type Parser struct {
@@ -55,4 +57,21 @@ func (p *Parser) WriteInitialOfferToCsvLocal(csvWriter *csv.Writer, initialOffer
 	if err := csvWriter.Write(row); err != nil {
 		LOGGER.Error("Error while writing files to failure/success Csv:", err)
 	}
+}
+
+func GetParserType() *Parser {
+
+	switch serviceConfig.ApplicationSetting.Lpc {
+	case "PSB", "ONL", "SPM":
+		multiOfferParser := &parserIml.MultiOfferParser{}
+		return SetParser(multiOfferParser)
+	case "GRO", "ANG":
+		groOfferParser := &parserIml.GroOfferParser{}
+		return SetParser(groOfferParser)
+
+	default: //JAR | NBR | INC
+		singleOfferParser := &parserIml.SingleOfferParser{}
+		return SetParser(singleOfferParser)
+	}
+
 }

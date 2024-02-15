@@ -106,8 +106,8 @@ func Validate(filePath string) (bool, error) {
 			}
 			break
 		}
-		_, remarks := validatorFactory.validateRow(row)
-		if true {
+		isValid, remarks := validatorFactory.validateRow(row)
+		if isValid {
 			writeToFile(validWriter, row)
 			if !anyValidRow {
 				anyValidRow = !anyValidRow

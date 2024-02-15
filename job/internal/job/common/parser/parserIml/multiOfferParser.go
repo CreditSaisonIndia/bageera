@@ -15,10 +15,10 @@ import (
 	PSB | ONL
 */
 
-type PsbOfferParser struct{}
+type MultiOfferParser struct{}
 
 // WriteOfferToCsv implements parser.Parser.
-func (*PsbOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOfferPointer *model.BaseOffer) {
+func (*MultiOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOfferPointer *model.BaseOffer) {
 	LOGGER := customLogger.GetLogger()
 	baseOffer := *baseOfferPointer
 	offerDetailsString, err := json.Marshal(baseOffer.(*model.MultiCsvOffer).OfferDetails)
@@ -37,7 +37,7 @@ func (*PsbOfferParser) WriteOfferToCsv(csvWriter *csv.Writer, baseOfferPointer *
 // GetFileHeader implements parser.Parser.
 
 // parse implements parser.Parser.
-func (*PsbOfferParser) Parse(baseOfferPointer *model.BaseOffer) (*model.InitialOffer, error) {
+func (*MultiOfferParser) Parse(baseOfferPointer *model.BaseOffer) (*model.InitialOffer, error) {
 	LOGGER := customLogger.GetLogger()
 	var proddbInitialOffer model.InitialOffer
 	baseOffer := *baseOfferPointer
@@ -75,6 +75,16 @@ func getSection(offers []model.OfferDetail) (time.Time, []byte, error) {
 
 		for _, internalOffer := range internalOfferArray {
 
+			var creditLimit, limitAmount *float64 = nil, nil
+
+			if internalOffer.CreditLimit != 0 {
+				creditLimit = &internalOffer.CreditLimit
+			}
+
+			if internalOffer.LimitAmount != 0 {
+				limitAmount = &internalOffer.LimitAmount
+			}
+
 			section := model.OfferSection{
 				ID:                 internalOffer.OfferID,
 				Interest:           internalOffer.ROI,
@@ -85,8 +95,8 @@ func getSection(offers []model.OfferDetail) (time.Time, []byte, error) {
 				MaxTenure:          internalOffer.MaxTenure,
 				MinTenure:          internalOffer.MinTenure,
 				ExpiryDateOfOffer:  resp.ExpiryDateOfOffer,
-				CreditLimit:        internalOffer.CreditLimit,
-				LimitAmount:        internalOffer.LimitAmount,
+				CreditLimit:        creditLimit,
+				LimitAmount:        limitAmount,
 				RateOfInterest:     internalOffer.ROI,
 				PF:                 internalOffer.PF,
 				DedupeString:       resp.DedupeString,

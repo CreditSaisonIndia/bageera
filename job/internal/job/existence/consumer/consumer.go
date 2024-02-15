@@ -13,9 +13,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/job/common/parser"
-	"github.com/CreditSaisonIndia/bageera/internal/job/common/parser/parserIml"
 	"github.com/CreditSaisonIndia/bageera/internal/model"
-	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 )
 
 var maxConsumerGoroutines = 15
@@ -66,7 +64,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 	successWriter := csv.NewWriter(successFile)
 	defer successWriter.Flush()
 
-	parser := getParserType()
+	parser := parser.GetParserType()
 
 	if err := successWriter.Write(header); err != nil {
 		LOGGER.Error("Error writing CSV header:", err)
@@ -192,21 +190,4 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 	LOGGER.Info("Worker finished :", fileName, "------> Existence ", chunkNumber, " times")
 
 	<-ConsumerConcurrencyCh
-}
-
-func getParserType() *parser.Parser {
-
-	switch serviceConfig.ApplicationSetting.Lpc {
-	case "PSB", "ONL":
-		psbOfferParser := &parserIml.PsbOfferParser{}
-		return parser.SetParser(psbOfferParser)
-	case "GRO", "ANG":
-		groOfferParser := &parserIml.GroOfferParser{}
-		return parser.SetParser(groOfferParser)
-
-	default:
-		singleOfferParser := &parserIml.SingleOfferParser{}
-		return parser.SetParser(singleOfferParser)
-	}
-
 }

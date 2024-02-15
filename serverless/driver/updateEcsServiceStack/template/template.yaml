@@ -72,6 +72,15 @@ Resources:
       Targets:
         - Arn: !GetAtt UpdateEcsServiceFunction.Arn
           Id: 'UpdateECSServiceLambdaTarget'
+  
+  PermissionEventsToInvokeLambda:
+    DependsOn: DailyLambdaInvokeRule
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UpdateEcsServiceFunction
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt DailyLambdaInvokeRule.Arn
 
 
 Outputs:
