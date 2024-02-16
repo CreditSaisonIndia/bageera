@@ -77,7 +77,7 @@ func (c *Consumer) Worker(filePath, fileName string, waitGroup *sync.WaitGroup) 
 
 			return nil
 		}
-
+		LOGGER.Infof("******RETRYING VLDAITION FOR  : %s --- > ", fileName)
 		try++
 	}
 
@@ -88,7 +88,7 @@ func (c *Consumer) Worker(filePath, fileName string, waitGroup *sync.WaitGroup) 
 func validateFile(fileName string, filePath string) error {
 	LOGGER := customLogger.GetLogger()
 
-	LOGGER.Info("STARTING WORKER FOR FILE : ", fileName)
+	LOGGER.Infof("***********STARTING WORKER FOR FILE : %s *************", fileName)
 	anyValidRow := false
 	anyInvalidRow := false
 
@@ -159,7 +159,7 @@ func validateFile(fileName string, filePath string) error {
 		if err != nil {
 			LOGGER.Error(err)
 			if err == io.EOF {
-				LOGGER.Error("Successfully read the file. EOF Reached")
+				LOGGER.Info("Successfully read the file. EOF Reached")
 			} else {
 
 				awsClient.SendAlertMessage("FAILED", "Error reading the input File")

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -163,7 +164,7 @@ func (v *Validator) DoValidate() error {
 	ctx := context.Background()
 	consumerConfig := consumer.ConsumerConfig{
 
-		Workers: 15,
+		Workers: 1,
 		Retry:   3,
 	}
 	erg, erc := errgroup.WithContext(ctx)
@@ -179,8 +180,21 @@ func (v *Validator) DoValidate() error {
 	}
 	waitGroup := sync.WaitGroup{}
 
-	for index, file := range files {
-		chunkDirPath := filepath.Join(outputChunkDir, strconv.Itoa(index+1))
+	for _, file := range files {
+
+		parts := strings.Split(file.Name(), ".csv")
+		lastPart := parts[0] // Get the part before .csv
+		segments := strings.Split(lastPart, "_")
+
+		var number string
+
+		if len(segments) > 0 {
+			lastSegment := segments[len(segments)-1]
+			if val, err := strconv.Atoi(lastSegment); err == nil {
+				number = strconv.Itoa(val)
+			}
+		}
+		chunkDirPath := filepath.Join(outputChunkDir, number)
 		// Create directory with read-write-execute permissions for owner, group, and others
 		err := os.MkdirAll(chunkDirPath, 0777)
 		if err != nil {

@@ -571,16 +571,16 @@ func delteMessageFromSQS(deleteParams *sqs.DeleteMessageInput, sqsClient *sqs.SQ
 
 func getSuccessAndFailurePathFormat() (string, string, string, string) {
 	if serviceConfig.ApplicationSetting.JobType == "insert" {
-		failureFilePathFormat := "%s_%s_exist_failure_insert_failure.csv"
-		successFilePathFormat := "%s_%s_exist_failure_insert_success.csv"
-		failurePatternString := `^%s_\d+_exist_failure_%s_failure\.csv$`
-		successPatternString := `^%s_\d+_exist_failure_%s_success\.csv$`
+		failureFilePathFormat := "%s_%s_valid_exist_failure_insert_failure.csv"
+		successFilePathFormat := "%s_%s_valid_exist_failure_insert_success.csv"
+		failurePatternString := `^%s_\d+_valid_exist_failure_%s_failure\.csv$`
+		successPatternString := `^%s_\d+_valid_exist_failure_%s_success\.csv$`
 		return failureFilePathFormat, successFilePathFormat, failurePatternString, successPatternString
 	}
 
-	failureFilePathFormat := "%s_%s_exist_success_" + serviceConfig.ApplicationSetting.JobType + "_failure.csv"
-	successFilePathFormat := "%s_%s_exist_success_" + serviceConfig.ApplicationSetting.JobType + "_success.csv"
-	failurePatternString := `^%s_\d+_exist_success_%s_failure\.csv$`
-	successPatternString := `^%s_\d+_exist_success_%s_success\.csv$`
+	failureFilePathFormat := "%s_%s_valid_exist_success_" + serviceConfig.ApplicationSetting.JobType + "_failure.csv"
+	successFilePathFormat := "%s_%s_valid_exist_success_" + serviceConfig.ApplicationSetting.JobType + "_success.csv"
+	failurePatternString := `^%s_\d+_valid_exist_success_%s_failure\.csv$`
+	successPatternString := `^%s_\d+_valid_exist_success_%s_success\.csv$`
 	return failureFilePathFormat, successFilePathFormat, failurePatternString, successPatternString
 }

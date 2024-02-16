@@ -66,8 +66,6 @@ func Consolidate(failurePattern *regexp.Regexp, successPattern *regexp.Regexp, f
 			failureCounts := make(map[string]int)
 			successCounts := make(map[string]int)
 			for _, file := range subDirFiles {
-
-				LOGGER.Info("file :", file.Name())
 				if err != nil {
 					LOGGER.Error("Error filepath.Glob: ", err)
 					return "", err
@@ -75,15 +73,15 @@ func Consolidate(failurePattern *regexp.Regexp, successPattern *regexp.Regexp, f
 
 				var chunkID string
 				if !processedChunks[chunkID] && (failurePattern.MatchString(file.Name()) || successPattern.MatchString(filepath.Base(file.Name()))) {
-					LOGGER.Info("Processing File  : ", file.Name())
+					LOGGER.Debug("Processing File  : ", file.Name())
 					chunkID := extractChunkID(file.Name(), afterLen)
 					// Skip processing if the chunk has already been processed
 
 					failureFilePath := fmt.Sprintf(failureFilePathFormat, fileNameWithoutExt, chunkID)
 					successFilePath := fmt.Sprintf(successFilePathFormat, fileNameWithoutExt, chunkID)
 					failureRowCount, err := getRowCount(filepath.Join(subDir, failureFilePath))
-					LOGGER.Info("SUCCESS PATH : ", successFilePath)
-					LOGGER.Info("FAILURE PATH : ", failureFilePath)
+					LOGGER.Debug("SUCCESS PATH : ", successFilePath)
+					LOGGER.Debug("FAILURE PATH : ", failureFilePath)
 					if err != nil {
 						LOGGER.Error("Error failureRowCount getRowCount: ", err)
 						return "", err
