@@ -26,9 +26,8 @@ func SplitCsv(outputChunkDir string) error {
 	splitter := splitCsv.New()
 	splitter.Separator = ";"          // "," is by default
 	splitter.FileChunkSize = 10000000 //in bytes (200MB)
-	baseDir := utils.GetMetadataBaseDir()
+	baseDir := utils.GetBaseDir()
 	fileNameWithoutExt, fileName := utils.GetFileName()
-	fileNameWithoutExt = fileNameWithoutExt + "_valid"
 	inputPath := filepath.Join(baseDir, fileNameWithoutExt+".csv")
 	ErrBigFileChunkSize := errors.New("file chunk size is bigger than input file")
 	_, err := splitter.Split(inputPath, outputChunkDir)
@@ -54,7 +53,7 @@ func SplitCsv(outputChunkDir string) error {
 		return err
 	}
 
-	LOGGER.Info("Total CSV files in %s: %d\n", outputChunkDir, csvCount)
+	LOGGER.Infof("Total CSV files in %s: %d\n", outputChunkDir, csvCount)
 	return nil
 }
 

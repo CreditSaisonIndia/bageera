@@ -9,7 +9,6 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient/multipartUpload"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
-	"github.com/CreditSaisonIndia/bageera/internal/utils"
 )
 
 func UploadDriver(ctx context.Context, s3 multipartUpload.S3, filePath string) error {
@@ -23,10 +22,9 @@ func UploadDriver(ctx context.Context, s3 multipartUpload.S3, filePath string) e
 		LOGGER.Error("Error while opening invalid file : ", err)
 		return err
 	}
-	relativeInvalidBaseDir := utils.GetRelativeInvalidBaseDir()
 	// Multipart uploader instance
 	up, err := s3.CreateMultipartUpload(ctx, multipartUpload.MultipartUploadConfig{
-		Key:      filepath.Join(relativeInvalidBaseDir, filepath.Base(filePath)),
+		Key:      filePath,
 		Filename: filepath.Base(filePath),
 		Mime:     "text/csv",
 		Bucket:   serviceConfig.ApplicationSetting.BucketName,

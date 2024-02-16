@@ -29,17 +29,17 @@ func GetJob() (*Job, error) {
 	switch serviceConfig.ApplicationSetting.JobType {
 	case "insert":
 		insertionJob := &insertion.Insertion{}
-		insertionJob.SetFileNamePattern(`.*_\d+_exist_failure\.csv`)
+		insertionJob.SetFileNamePattern(`.*_\d+_valid_exist_failure\.csv`)
 		return SetStrategy(insertionJob), nil
 
 	case "delete":
 		deletionJob := &deletion.Deletion{}
-		deletionJob.SetFileNamePattern(`.*_\d+_exist_success\.csv`)
+		deletionJob.SetFileNamePattern(`.*_\d+_valid_exist_success\.csv`)
 		return SetStrategy(deletionJob), nil
 
 	case "update":
 		updationJob := &updation.Updation{}
-		updationJob.SetFileNamePattern(`.*_\d+_exist_success\.csv`)
+		updationJob.SetFileNamePattern(`.*_\d+_valid_exist_success\.csv`)
 		return SetStrategy(updationJob), nil
 
 	default:

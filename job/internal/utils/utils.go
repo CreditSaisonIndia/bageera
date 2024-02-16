@@ -157,7 +157,7 @@ func GetFileName() (string, string) {
 }
 
 func GetFileNameFromPath(path string) (string, string) {
-	objectKey := serviceConfig.ApplicationSetting.ObjectKey
+	objectKey := path
 	// Extract the fileName without extension
 	fileName := filepath.Base(objectKey)
 	fileNameWithoutExt := fileName[:len(fileName)-len(filepath.Ext(fileName))]

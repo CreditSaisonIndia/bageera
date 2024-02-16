@@ -1,26 +1,31 @@
 package queueConsumer
 
 import (
+	"bufio"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient/multipartUpload"
+	"github.com/CreditSaisonIndia/bageera/internal/concurrentValidator"
 	"github.com/CreditSaisonIndia/bageera/internal/consolidation"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/database"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job"
 	"github.com/CreditSaisonIndia/bageera/internal/job/existence"
-	"github.com/CreditSaisonIndia/bageera/internal/sequentialValidator"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
+	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -94,7 +99,7 @@ func Consume() error {
 
 		result, err := sqsClient.ReceiveMessage(receiveParams)
 		if err != nil {
-			LOGGER.Info("Error receiving message:", err)
+			LOGGER.Error("Error receiving message:", err)
 			break // Exit the loop on error
 		}
 
@@ -168,8 +173,23 @@ func Consume() error {
 				break
 			}
 
+			LOGGER.Info("*******SPLITTING*******")
+
+			err = splitter.SplitCsv(utils.GetChunksDir())
+			if err != nil {
+				serviceConfig.PrintSettings()
+				LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
+				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE SPLITTING CSV - %s", err))
+				return err
+			}
+
+			concurrentValidator := &concurrentValidator.Validator{
+				LOGGER: customLogger.GetLogger(), // Adjust the logger as needed
+				// Set to true if you want to use IAM role authentication
+			}
+
 			LOGGER.Info("Validating the csv file at path:", path)
-			allInvalidRows, err := sequentialValidator.Validate(path)
+			err = concurrentValidator.DoValidate()
 			if err != nil {
 				serviceConfig.PrintSettings()
 				LOGGER.Error("Error while Validation ", err)
@@ -177,15 +197,39 @@ func Consume() error {
 				break
 			}
 
-			if allInvalidRows {
+			fileNameWithoutExt, _ := utils.GetFileName()
+			failureFilePathFormat := "%s_%s_invalid.csv"
+			successFilePathFormat := "%s_%s_valid.csv"
+			failurePattern := regexp.MustCompile(fmt.Sprintf(`^%s_\d+_valid\.csv$`, fileNameWithoutExt))
+			successPattern := regexp.MustCompile(fmt.Sprintf(`^%s_\d+_invalid\.csv$`, fileNameWithoutExt))
+
+			validatorRowCountFilePath, err := consolidation.Consolidate(failurePattern, successPattern, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, "valid_row_count.csv", 2)
+
+			verifier := &consolidation.ExistenceVerifyConsolidatorImpl{}
+			result := verifier.VerifyCount(validatorRowCountFilePath)
+			if result.(*consolidation.ExistenceValidationResult).SomePresent {
+				LOGGER.Info("******CSV HAS SOME VALID OFFER TO DUMP******")
+				LOGGER.Info("Invalid rows found after validation")
+				awsClient.SendAlertMessage("PARTIAL FAILURE", "Invalid rows found after validation")
+
+			} else if result.(*consolidation.ExistenceValidationResult).AllPresent {
+				//All Valid
+				LOGGER.Info("******CSV HAS ALL VALID OFFERS******")
+
+				LOGGER.Info("******CONTINUING SINCE ALL OFFERS VALID******")
+
+			} else if result.(*consolidation.ExistenceValidationResult).AllAbsent {
+				//ALL INVALID
+				LOGGER.Error("******CSV HAS ALL INVALID FILE. HENCE STOPPING THE FLOW******")
+				awsClient.SendAlertMessage("FAILED", "No valid rows present after validation")
 				serviceConfig.PrintSettings()
 				LOGGER.Info("Starting invalid upload file Wait")
 				invalidGoroutinesWaitGroup := sync.WaitGroup{}
 				invalidGoroutinesWaitGroup.Add(1)
-				invalidBaseDir := utils.GetInvalidBaseDir()
-				fileNameWithoutExt, _ := utils.GetFileName()
+				// invalidBaseDir := utils.GetInvalidBaseDir()
+				// fileNameWithoutExt, _ := utils.GetFileName()
 				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
-					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+					validatorRowCountFilePath)
 				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
 				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
 				break
@@ -201,14 +245,13 @@ func Consume() error {
 				LOGGER.Error("ERROR WHILE existence.Execute() : ", err)
 				break
 			}
-			fileNameWithoutExt, _ := utils.GetFileName()
-			fileNameWithoutExt += "_valid"
-			failureFilePathFormat := "%s_%s_exist_failure.csv"
-			successFilePathFormat := "%s_%s_exist_success.csv"
-			failurePattern := regexp.MustCompile(fmt.Sprintf(`^%s_\d+_exist_failure\.csv$`, fileNameWithoutExt))
-			successPattern := regexp.MustCompile(fmt.Sprintf(`^%s_\d+_exist_success\.csv$`, fileNameWithoutExt))
+			fileNameWithoutExt, _ = utils.GetFileName()
+			failureFilePathFormat = "%s_%s_valid_exist_failure.csv"
+			successFilePathFormat = "%s_%s_valid_exist_success.csv"
+			failurePattern = regexp.MustCompile(fmt.Sprintf(`^%s_\d+_valid_exist_failure\.csv$`, fileNameWithoutExt))
+			successPattern = regexp.MustCompile(fmt.Sprintf(`^%s_\d+_valid_exist_success\.csv$`, fileNameWithoutExt))
 
-			existRowCountFilePath, err := consolidation.Consolidate(failurePattern, successPattern, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, "exist_row_count.csv", 3)
+			existRowCountFilePath, err := consolidation.Consolidate(failurePattern, successPattern, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, "exist_row_count.csv", 4)
 			if err != nil {
 				LOGGER.Error("ERROR WHILE CONSOLIDATION : ", err)
 				serviceConfig.PrintSettings()
@@ -225,12 +268,12 @@ func Consume() error {
 				break
 			}
 
-			verifier := &consolidation.ExistenceVerifyConsolidatorImpl{}
-			result := verifier.VerifyCount(existRowCountFilePath)
-			if result.SomePresent {
+			verifier = &consolidation.ExistenceVerifyConsolidatorImpl{}
+			result = verifier.VerifyCount(existRowCountFilePath)
+			if result.(*consolidation.ExistenceValidationResult).SomePresent {
 				LOGGER.Info("******CSV HAS SOME NEW OFFERS TO DUMP******")
 
-			} else if result.AllPresent {
+			} else if result.(*consolidation.ExistenceValidationResult).AllPresent {
 				LOGGER.Error("******CSV HAS NO NEW OFFERS TO DUMP******")
 				//not breaking the flow if the job type is of delete
 				if serviceConfig.ApplicationSetting.JobType == "insert" {
@@ -239,7 +282,7 @@ func Consume() error {
 				}
 				LOGGER.Error("******SKIPPING THE BREAK SINCE JOB IS OF TYPE DELETE/UPDATE******")
 
-			} else if result.AllAbsent {
+			} else if result.(*consolidation.ExistenceValidationResult).AllAbsent {
 				LOGGER.Error("******CSV HAS WHOLE NEW OFFERS TO DUMP******")
 				//not breaking the flow if the job type is of delete
 				if serviceConfig.ApplicationSetting.JobType == "update" || serviceConfig.ApplicationSetting.JobType == "delete" {
@@ -312,11 +355,10 @@ func Consume() error {
 			job.ExecuteStrategy(serviceConfig.ApplicationSetting.ObjectKey, "initial_offer")
 
 			fileNameWithoutExt, _ = utils.GetFileName()
-			fileNameWithoutExt += "_valid"
 			failureFilePathFormat, successFilePathFormat, failurePatternString, successPatternString := getSuccessAndFailurePathFormat()
 			failurePattern = regexp.MustCompile(fmt.Sprintf(failurePatternString, fileNameWithoutExt, serviceConfig.ApplicationSetting.JobType))
 			successPattern = regexp.MustCompile(fmt.Sprintf(successPatternString, fileNameWithoutExt, serviceConfig.ApplicationSetting.JobType))
-			jobRowCountFilePath, err := consolidation.Consolidate(failurePattern, successPattern, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, "job_row_count.csv", 5)
+			jobRowCountFilePath, err := consolidation.Consolidate(failurePattern, successPattern, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, "job_row_count.csv", 6)
 			if err != nil {
 				LOGGER.Error("ERROR WHILE CONSOLIDATION : ", err)
 				serviceConfig.PrintSettings()
@@ -335,7 +377,7 @@ func Consume() error {
 
 			jobVerifier := &consolidation.JobVerifyConsolidatorImpl{}
 			result = jobVerifier.VerifyCount(jobRowCountFilePath)
-			if result.IsValid {
+			if result.(*consolidation.VerifyCountResult).IsValid {
 				LOGGER.Info("Validation passed for Result")
 				awsClient.SendAlertMessage("SUCCESS", "")
 			} else {
@@ -374,7 +416,7 @@ func Consume() error {
 	return nil
 }
 
-func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup, filePath string) {
+func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup, resultPath string) {
 	LOGGER := customLogger.GetLogger()
 	LOGGER.Info("*******UPLOADING INVALID FILE*******")
 
@@ -390,9 +432,54 @@ func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup, fi
 	// AWS S3 client
 	s3 := multipartUpload.NewS3(cfg, serviceConfig.ApplicationSetting.BucketName)
 
-	if err := awsClient.UploadDriver(ctx, s3, filePath); err != nil {
-		LOGGER.Error(err)
+	file, err := os.Open(resultPath)
+	if err != nil {
+		LOGGER.Infof("Error: ", err)
+		return
 	}
+	defer file.Close()
+
+	// Create a new scanner to read the file line by line
+	scanner := bufio.NewScanner(file)
+
+	//skip header
+	if scanner.Scan() {
+		// Skip the header row
+		_ = scanner.Text()
+	}
+	// Iterate through lines of the file
+	for scanner.Scan() {
+		// Read the current line
+		line := scanner.Text()
+
+		// Parse the line as CSV
+		reader := csv.NewReader(strings.NewReader(line))
+		record, err := reader.Read()
+		if err != nil {
+			LOGGER.Infof("Error reading line as CSV: ", err)
+			continue
+		}
+
+		// Convert FailureCount to integer
+		failureCount, err := strconv.Atoi(record[2])
+		if err != nil {
+			LOGGER.Infof("Error converting FailureCount: ", err)
+			continue
+		}
+
+		// Check if FailureCount is greater than 1
+		if failureCount > 1 {
+			// Print relevant information
+			fileNamwWithOutExt, _ := utils.GetFileName()
+			filePathWithFileName := filepath.Join(utils.GetChunksDir(), record[0], fileNamwWithOutExt+"_"+record[0]+"_invalid.csv")
+			LOGGER.Infof("ChunkID: %s, FileName: %s, FailureCount: %d, SuccessCount: %s", record[0], record[1], failureCount, record[3])
+			if err := awsClient.UploadDriver(ctx, s3, filePathWithFileName); err != nil {
+				LOGGER.Error(err)
+			}
+
+		}
+	}
+
 }
 
 func setConfigFromSqsMessage(jsonMessage string) error {

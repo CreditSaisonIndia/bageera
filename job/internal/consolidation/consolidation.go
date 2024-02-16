@@ -156,6 +156,34 @@ func extractChunkID(filePath string, afterLen int) string {
 	return chunkID
 }
 
+type ResultInterface interface {
+	show()
+}
+
+type CommonFields struct {
+	Err error
+}
+
+type VerifyCountResult struct {
+	CommonFields
+	IsValid bool
+}
+
+func (v *VerifyCountResult) show() {
+	fmt.Printf("show")
+}
+
+type ExistenceValidationResult struct {
+	CommonFields
+	AllPresent  bool
+	AllAbsent   bool
+	SomePresent bool
+}
+
+func (e *ExistenceValidationResult) show() {
+	fmt.Printf("show")
+}
+
 type ValidationResult struct {
 	IsValid     bool
 	AllPresent  bool
@@ -164,19 +192,19 @@ type ValidationResult struct {
 	Err         error
 }
 
-type ExistenceValidationResult struct {
-	ValidationResult
-}
 type VerifyConsolidator interface {
 	VerifyCount(filePath string) ValidationResult
 }
 type JobVerifyConsolidatorImpl struct{}
 
-func (v *JobVerifyConsolidatorImpl) VerifyCount(filePath string) ValidationResult {
+func (v *JobVerifyConsolidatorImpl) VerifyCount(filePath string) ResultInterface {
 	// Open the CSV file
 	file, err := os.Open(filePath)
 	if err != nil {
-		return ValidationResult{IsValid: false, Err: err}
+		return &VerifyCountResult{
+			CommonFields: CommonFields{Err: err},
+			IsValid:      false,
+		}
 	}
 	defer file.Close()
 	// Create a CSV reader
@@ -184,34 +212,55 @@ func (v *JobVerifyConsolidatorImpl) VerifyCount(filePath string) ValidationResul
 	// Read all records from the CSV file
 	records, err := reader.ReadAll()
 	if err != nil {
-		return ValidationResult{IsValid: false, Err: err}
+		return &VerifyCountResult{
+			CommonFields: CommonFields{Err: err},
+			IsValid:      false,
+		}
 	}
 	// Task 1: Check if there is data apart from the header
 	if len(records) <= 1 {
-		return ValidationResult{IsValid: false, Err: err}
+		return &VerifyCountResult{
+			CommonFields: CommonFields{Err: err},
+			IsValid:      false,
+		}
 	}
 	// Task 2: Check if all FailureCount rows have only one value
 	for _, record := range records[1:] { // Start from index 1 to skip the header
 		failureCount, err := strconv.Atoi(record[2])
 		if err != nil {
-			return ValidationResult{IsValid: false, Err: err}
+			return &VerifyCountResult{
+				CommonFields: CommonFields{Err: err},
+				IsValid:      false,
+			}
 		}
 		if failureCount != 1 {
-			return ValidationResult{IsValid: false, Err: err}
+			return &VerifyCountResult{
+				CommonFields: CommonFields{Err: err},
+				IsValid:      false,
+			}
 		}
 	}
 	// All checks passed
-	return ValidationResult{IsValid: true, Err: err}
+	return &VerifyCountResult{
+		CommonFields: CommonFields{Err: nil},
+		IsValid:      true,
+	}
 }
 
 type ExistenceVerifyConsolidatorImpl struct{}
 
-func (v *ExistenceVerifyConsolidatorImpl) VerifyCount(filePath string) ValidationResult {
+func (v *ExistenceVerifyConsolidatorImpl) VerifyCount(filePath string) ResultInterface {
 	// Open the CSV file
 	var allPresent, allAbsent, somePresent bool = false, false, false
 	file, err := os.Open(filePath)
 	if err != nil {
-		return ValidationResult{IsValid: false, Err: err}
+		return &ExistenceValidationResult{
+			CommonFields: CommonFields{Err: err},
+			AllPresent:   false,
+			AllAbsent:    false,
+			SomePresent:  false,
+		}
+
 	}
 	defer file.Close()
 	// Create a CSV reader
@@ -219,12 +268,22 @@ func (v *ExistenceVerifyConsolidatorImpl) VerifyCount(filePath string) Validatio
 	// Read all records from the CSV file
 	records, err := reader.ReadAll()
 	if err != nil {
-		return ValidationResult{IsValid: false, Err: err}
+		return &ExistenceValidationResult{
+			CommonFields: CommonFields{Err: err},
+			AllPresent:   false,
+			AllAbsent:    false,
+			SomePresent:  false,
+		}
 	}
 	// Task 1: Check if there is data apart from the header
 	countRecordsLength := len(records)
 	if countRecordsLength <= 1 {
-		return ValidationResult{IsValid: false, Err: err}
+		return &ExistenceValidationResult{
+			CommonFields: CommonFields{Err: err},
+			AllPresent:   false,
+			AllAbsent:    false,
+			SomePresent:  false,
+		}
 	}
 	// Task 2: Check if all FailureCount rows have only one value
 	var localFailureCount, localSuccessCount int
@@ -235,7 +294,12 @@ func (v *ExistenceVerifyConsolidatorImpl) VerifyCount(filePath string) Validatio
 		successCount, err := strconv.Atoi(record[3])
 		localSuccessCount += successCount
 		if err != nil {
-			return ValidationResult{IsValid: false, Err: err}
+			return &ExistenceValidationResult{
+				CommonFields: CommonFields{Err: err},
+				AllPresent:   false,
+				AllAbsent:    false,
+				SomePresent:  false,
+			}
 		}
 	}
 	//All Counts includes header
@@ -251,5 +315,10 @@ func (v *ExistenceVerifyConsolidatorImpl) VerifyCount(filePath string) Validatio
 	}
 
 	// All checks passed
-	return ValidationResult{IsValid: true, AllPresent: allPresent, AllAbsent: allAbsent, SomePresent: somePresent, Err: err}
+	return &ExistenceValidationResult{
+		CommonFields: CommonFields{Err: err},
+		AllPresent:   allPresent,
+		AllAbsent:    allAbsent,
+		SomePresent:  somePresent,
+	}
 }

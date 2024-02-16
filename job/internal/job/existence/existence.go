@@ -5,19 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
+	"regexp"
 	"sync"
 	"time"
 
 	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/database"
-	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/job"
 	"github.com/CreditSaisonIndia/bageera/internal/job/existence/producer"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
-	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -50,38 +48,52 @@ func (e *Existence) ExecuteJob(path string, tableName string) error {
 		return err
 	}
 
-	e.LOGGER.Info("*******SPLITTING*******")
-
-	err = splitter.SplitCsv(utils.GetExistenceChunksDir())
-	if err != nil {
-		serviceConfig.PrintSettings()
-		e.LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
-		awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE SPLITTING CSV - %s", err))
-		return err
-	}
-
 	e.LOGGER.Info("***** STARTING EXISTENCE JOB *****")
 	var wg sync.WaitGroup
 	var consumerWg sync.WaitGroup
-	outputChunkDir := utils.GetExistenceChunksDir()
+	outputChunkDir := utils.GetChunksDir()
 	files, err := os.ReadDir(outputChunkDir)
 	if err != nil {
 		e.LOGGER.Error("Error reading directory:", err)
 		return err
 	}
 
-	for index, file := range files {
-		chunkDirPath := filepath.Join(outputChunkDir, strconv.Itoa(index+1))
-		// Create directory with read-write-execute permissions for owner, group, and others
-		err := os.MkdirAll(chunkDirPath, 0777)
-		if err != nil {
-			e.LOGGER.Error("Error creating chunk directory:", err)
-			return err
+	pattern := `.*_\d+_valid\.csv`
+	regex := regexp.MustCompile(pattern)
+	for _, file := range files {
+		if file.IsDir() {
+			// Get the subdirectory path
+			subDir := filepath.Join(outputChunkDir, file.Name())
+
+			subDirFiles, err := os.ReadDir(subDir)
+			if err != nil {
+				e.LOGGER.Error("Error reading directory:", err)
+				return err
+			}
+
+			for _, file := range subDirFiles {
+				if file.Type().IsRegular() && regex.MatchString(file.Name()) {
+					wg.Add(1)
+					go producer.Worker(subDir, file.Name(), &wg, &consumerWg)
+				}
+			}
+
 		}
-		fileUtilityWrapper.Move(filepath.Join(outputChunkDir, file.Name()), filepath.Join(chunkDirPath, file.Name()))
-		wg.Add(1)
-		go producer.Worker(chunkDirPath, file.Name(), &wg, &consumerWg)
+
 	}
+
+	// for index, file := range files {
+	// 	chunkDirPath := filepath.Join(outputChunkDir, strconv.Itoa(index+1))
+	// 	// Create directory with read-write-execute permissions for owner, group, and others
+	// 	err := os.MkdirAll(chunkDirPath, 0777)
+	// 	if err != nil {
+	// 		e.LOGGER.Error("Error creating chunk directory:", err)
+	// 		return err
+	// 	}
+	// 	fileUtilityWrapper.Move(filepath.Join(outputChunkDir, file.Name()), filepath.Join(chunkDirPath, file.Name()))
+	// 	wg.Add(1)
+	// 	go producer.Worker(chunkDirPath, file.Name(), &wg, &consumerWg)
+	// }
 
 	// Wait for all workers to finish
 	wg.Wait()
