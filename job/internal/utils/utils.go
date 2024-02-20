@@ -70,6 +70,10 @@ func GetRelativeInvalidBaseDir() string {
 	return GetRelativeMetadataUsecaseDir("invalid")
 }
 
+func GetRelativeResultBaseDir() string {
+	return GetRelativeMetadataUsecaseDir("result")
+}
+
 func GetRelativeMetadataUsecaseDir(usecaseDir string) string {
 	objectKey := GetMetadataObjectKey()
 	dirPath := filepath.Dir(objectKey)

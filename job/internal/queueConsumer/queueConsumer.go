@@ -185,7 +185,7 @@ func Consume() error {
 				invalidBaseDir := utils.GetInvalidBaseDir()
 				fileNameWithoutExt, _ := utils.GetFileName()
 				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
-					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"), utils.GetRelativeInvalidBaseDir())
 				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
 				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
 				break
@@ -210,6 +210,8 @@ func Consume() error {
 
 			existRowCountFilePath, err := consolidation.Consolidate(failurePattern, successPattern, failureFilePathFormat, successFilePathFormat, fileNameWithoutExt, "exist_row_count.csv", 3)
 			if err != nil {
+
+				//UPLOADING INVALID FILE
 				LOGGER.Error("ERROR WHILE CONSOLIDATION : ", err)
 				serviceConfig.PrintSettings()
 				awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE CONSOLIDATION - %s", err))
@@ -219,9 +221,10 @@ func Consume() error {
 				invalidBaseDir := utils.GetInvalidBaseDir()
 				fileNameWithoutExt, _ := utils.GetFileName()
 				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
-					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"), utils.GetRelativeInvalidBaseDir())
 				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
 				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
+
 				break
 			}
 
@@ -294,9 +297,21 @@ func Consume() error {
 				invalidBaseDir := utils.GetInvalidBaseDir()
 				fileNameWithoutExt, _ := utils.GetFileName()
 				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
-					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"), utils.GetRelativeInvalidBaseDir())
 				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
 				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
+
+				//UPLOADING EXISTENCE ROW COUNT
+
+				LOGGER.Info("Starting existence count upload file")
+				existenceGoroutinesWaitGroup := sync.WaitGroup{}
+				existenceGoroutinesWaitGroup.Add(1)
+
+				uploadInvalidFileToS3IfExist(&existenceGoroutinesWaitGroup,
+					existRowCountFilePath, utils.GetRelativeResultBaseDir())
+				LOGGER.Info("*******EXISTENCE ROW COUNT FILE UPLOAD CALL DONE*******")
+				LOGGER.Info("Ended exist count upload file")
+
 				break
 			}
 
@@ -327,9 +342,21 @@ func Consume() error {
 				invalidBaseDir := utils.GetInvalidBaseDir()
 				fileNameWithoutExt, _ := utils.GetFileName()
 				uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
-					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+					filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"), utils.GetRelativeInvalidBaseDir())
 				LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
 				LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
+
+				//UPLOADING EXISTENCE ROW COUNT
+
+				LOGGER.Info("Starting existence count upload file")
+				existenceGoroutinesWaitGroup := sync.WaitGroup{}
+				existenceGoroutinesWaitGroup.Add(1)
+
+				uploadInvalidFileToS3IfExist(&existenceGoroutinesWaitGroup,
+					existRowCountFilePath, utils.GetRelativeResultBaseDir())
+				LOGGER.Info("*******EXISTENCE ROW COUNT FILE UPLOAD CALL DONE*******")
+				LOGGER.Info("Ended exist count upload file")
+
 				break
 			}
 
@@ -365,16 +392,38 @@ func Consume() error {
 			invalidBaseDir := utils.GetInvalidBaseDir()
 			fileNameWithoutExt, _ = utils.GetFileName()
 			uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
-				filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
+				filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"), utils.GetRelativeInvalidBaseDir())
 			LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
 			LOGGER.Info("Ended invalid upload file")
+
+			//UPLOADING EXISTENCE ROW COUNT
+
+			LOGGER.Info("Starting existence count upload file")
+			existenceGoroutinesWaitGroup := sync.WaitGroup{}
+			existenceGoroutinesWaitGroup.Add(1)
+
+			uploadInvalidFileToS3IfExist(&existenceGoroutinesWaitGroup,
+				existRowCountFilePath, utils.GetRelativeResultBaseDir())
+			LOGGER.Info("*******EXISTENCE ROW COUNT FILE UPLOAD CALL DONE*******")
+			LOGGER.Info("Ended exist count upload file")
+
+			//UPLOADING JOB ROW COUNT
+
+			LOGGER.Info("Starting job count upload file")
+			jobGoroutinesWaitGroup := sync.WaitGroup{}
+			jobGoroutinesWaitGroup.Add(1)
+
+			uploadInvalidFileToS3IfExist(&jobGoroutinesWaitGroup,
+				jobRowCountFilePath, utils.GetRelativeResultBaseDir())
+			LOGGER.Info("*******JOB ROW COUNT FILE UPLOAD CALL DONE*******")
+			LOGGER.Info("Ended JOB upload file")
 
 		}
 	}
 	return nil
 }
 
-func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup, filePath string) {
+func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup, filePath, baseDir string) {
 	LOGGER := customLogger.GetLogger()
 	LOGGER.Info("*******UPLOADING INVALID FILE*******")
 
@@ -390,7 +439,7 @@ func uploadInvalidFileToS3IfExist(invalidGoroutinesWaitGroup *sync.WaitGroup, fi
 	// AWS S3 client
 	s3 := multipartUpload.NewS3(cfg, serviceConfig.ApplicationSetting.BucketName)
 
-	if err := awsClient.UploadDriver(ctx, s3, filePath); err != nil {
+	if err := awsClient.UploadDriver(ctx, s3, filePath, baseDir); err != nil {
 		LOGGER.Error(err)
 	}
 }
