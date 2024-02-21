@@ -256,6 +256,8 @@ func Consume() error {
 				LOGGER.Error("******CSV HAS WHOLE NEW OFFERS TO DUMP******")
 				//not breaking the flow if the job type is of delete
 				if serviceConfig.ApplicationSetting.JobType == "update" || serviceConfig.ApplicationSetting.JobType == "delete" {
+
+					LOGGER.Error("******TERMINATING THE JOB SINCE ITS OF TYPE DELETE/UPDATE******")
 					awsClient.SendAlertMessage("FAILED", "All Offers are Non-Existing")
 
 					break

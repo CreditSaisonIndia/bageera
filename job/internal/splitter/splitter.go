@@ -54,7 +54,7 @@ func SplitCsv(outputChunkDir string) error {
 		return err
 	}
 
-	LOGGER.Info("Total CSV files in %s: %d\n", outputChunkDir, csvCount)
+	LOGGER.Infof("Total CSV files in %s: %d", outputChunkDir, csvCount)
 	return nil
 }
 
