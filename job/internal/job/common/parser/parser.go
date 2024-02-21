@@ -69,6 +69,10 @@ func GetParserType() *Parser {
 		groOfferParser := &parserIml.GroOfferParser{}
 		return SetParser(groOfferParser)
 
+	case "migrate":
+		migrateOfferParser := &parserIml.MigrateOfferParser{}
+		return SetParser(migrateOfferParser)
+
 	default: //JAR | NBR | INC
 		singleOfferParser := &parserIml.SingleOfferParser{}
 		return SetParser(singleOfferParser)

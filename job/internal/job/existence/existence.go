@@ -1,7 +1,6 @@
 package existence
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,9 +18,6 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
 )
 
@@ -45,14 +41,20 @@ func (e *Existence) ExecuteJob(path string, tableName string) error {
 	// fileNameWithoutExt, _ := utils.GetFileName()
 	// uploadInvalidFileToS3IfExist(&invalidGoroutinesWaitGroup,
 	// 	filepath.Join(invalidBaseDir, fileNameWithoutExt+"_invalid.csv"))
-	pool, err := e.GetDbPool(serviceConfig.DatabaseSetting.ReaderDbHost)
+
+	peer := &database.Peer{
+		Name:        "peer",
+		Logger:      customLogger.GetLogger(), // Adjust the logger as needed
+		IAMRoleAuth: true,                     // Set to true if you want to use IAM role authentication
+	}
+	pool, err := peer.GetDbPool(serviceConfig.DatabaseSetting.ReaderDbHost)
 	if err != nil {
 		return err
 	}
 
 	e.LOGGER.Info("*******SPLITTING*******")
 
-	err = splitter.SplitCsv(utils.GetExistenceChunksDir())
+	err = splitter.SplitCsv(10000000)
 	if err != nil {
 		serviceConfig.PrintSettings()
 		e.LOGGER.Error("ERROR WHILE SPLITTING CSV : ", err)
@@ -104,7 +106,12 @@ func (e *Existence) ExecuteJob(path string, tableName string) error {
 Does start the insertion job for metadata table
 */
 func (e *Existence) DoInsert() error {
-	pool, err := e.GetDbPool(serviceConfig.DatabaseSetting.MasterDbHost)
+	peer := &database.Peer{
+		Name:        "peer",
+		Logger:      customLogger.GetLogger(), // Adjust the logger as needed
+		IAMRoleAuth: true,                     // Set to true if you want to use IAM role authentication
+	}
+	pool, err := peer.GetDbPool(serviceConfig.DatabaseSetting.MasterDbHost)
 	if err != nil {
 		return err
 	}
@@ -115,50 +122,4 @@ func (e *Existence) DoInsert() error {
 	jobStrategy.ExecuteStrategy(serviceConfig.ApplicationSetting.ObjectKey, "initial_offer_history")
 	pool.Close()
 	return nil
-}
-
-func (e *Existence) GetDbPool(host string) (*pgxpool.Pool, error) {
-	e.LOGGER.Info("SETTING SESSION FOR DATABASE")
-	opts := session.Options{Config: aws.Config{
-		CredentialsChainVerboseErrors: aws.Bool(true),
-		Region:                        aws.String(serviceConfig.ApplicationSetting.Region),
-		MaxRetries:                    aws.Int(3),
-	}}
-	sess := session.Must(session.NewSessionWithOptions(opts))
-
-	e.LOGGER.Info("DONE SETTING SESSION FOR DATABASE")
-
-	p := &database.Peer{
-		Name:        "peer",
-		Logger:      customLogger.GetLogger(),
-		IAMRoleAuth: true,
-	}
-
-	cfg := database.DBConfig{
-		Host:        host,
-		Port:        serviceConfig.DatabaseSetting.Port,
-		User:        serviceConfig.DatabaseSetting.User,
-		Password:    serviceConfig.DatabaseSetting.Password,
-		SSLMode:     serviceConfig.DatabaseSetting.SslMode,
-		Name:        serviceConfig.DatabaseSetting.Name,
-		Region:      os.Getenv("region"),
-		IAMRoleAuth: true,
-		Env:         os.Getenv("environment"),
-		SearchPath:  serviceConfig.DatabaseSetting.TablePrefix,
-	}
-
-	pool, err := p.GetDBPool(context.Background(), cfg, sess)
-	if err != nil {
-		e.LOGGER.Error("ERROR WHILE INITIALIZING DB POOL : ", err)
-		serviceConfig.PrintSettings()
-		awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE INITIALIZING DB POOL - %s", err))
-		e.LOGGER.Info("Starting invalid upload file Wait")
-		invalidGoroutinesWaitGroup := sync.WaitGroup{}
-		invalidGoroutinesWaitGroup.Add(1)
-
-		e.LOGGER.Info("*******INVALID FILE UPLOAD CALL DONE*******")
-		e.LOGGER.Info("Ended invalidGoroutinesWaitGroup Wait")
-		return nil, fmt.Errorf("ERROR WHILE INITIALIZING DB POOL : %w", err)
-	}
-	return pool, nil
 }

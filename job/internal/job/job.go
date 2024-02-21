@@ -6,6 +6,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/job/deletion"
 	"github.com/CreditSaisonIndia/bageera/internal/job/insertion"
+	"github.com/CreditSaisonIndia/bageera/internal/job/migration"
 	"github.com/CreditSaisonIndia/bageera/internal/job/updation"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 )
@@ -26,6 +27,7 @@ func (j *Job) ExecuteStrategy(path string, tableName string) {
 
 func GetJob() (*Job, error) {
 	LOGGER := customLogger.GetLogger()
+	LOGGER.Infof(" FOUND %s Type", serviceConfig.ApplicationSetting.JobType)
 	switch serviceConfig.ApplicationSetting.JobType {
 	case "insert":
 		insertionJob := &insertion.Insertion{}
@@ -41,6 +43,11 @@ func GetJob() (*Job, error) {
 		updationJob := &updation.Updation{}
 		updationJob.SetFileNamePattern(`.*_\d+_exist_success\.csv`)
 		return SetStrategy(updationJob), nil
+
+	case "migrate":
+		migrationJob := &migration.Migration{}
+		migrationJob.SetFileNamePattern("")
+		return SetStrategy(migrationJob), nil
 
 	default:
 		LOGGER.Error("INVALID JOB TYPE")

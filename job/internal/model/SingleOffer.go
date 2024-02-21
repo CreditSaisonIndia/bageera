@@ -22,3 +22,8 @@ type DeleteCsvOffer struct {
 	BaseOffer
 	PartnerLoanId string `json:"partner_loan_id"`
 }
+
+type MigrateCsvOffer struct {
+	BaseOffer
+	PartnerLoanId string `json:"partner_loan_id"`
+}

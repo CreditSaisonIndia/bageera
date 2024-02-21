@@ -109,7 +109,7 @@ func GetJobTypeFromPath() string {
 	// Iterate through the parts to find "insert"
 	var extractedPart string
 	for _, part := range parts {
-		if part == "insert" || part == "delete" || part == "update" {
+		if part == "insert" || part == "delete" || part == "update" || part == "migrate" {
 			extractedPart = part
 			break
 		}

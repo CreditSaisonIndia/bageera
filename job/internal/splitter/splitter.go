@@ -14,18 +14,18 @@ import (
 
 var LOGGER *zap.SugaredLogger
 
-func SplitCsv(outputChunkDir string) error {
+func SplitCsv(chunkSize int) error {
 
 	LOGGER := customLogger.GetLogger()
-
+	outputChunkDir := utils.GetChunksDir()
 	if err := os.MkdirAll(outputChunkDir, os.ModePerm); err != nil {
 		LOGGER.Info("Error creating directory:", err)
 		return err
 	}
 
 	splitter := splitCsv.New()
-	splitter.Separator = ";"          // "," is by default
-	splitter.FileChunkSize = 10000000 //in bytes (200MB)
+	splitter.Separator = ";"           // "," is by default
+	splitter.FileChunkSize = chunkSize //in bytes (200MB)
 	baseDir := utils.GetMetadataBaseDir()
 	fileNameWithoutExt, fileName := utils.GetFileName()
 	fileNameWithoutExt = fileNameWithoutExt + "_valid"

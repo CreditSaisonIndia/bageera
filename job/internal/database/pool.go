@@ -3,9 +3,13 @@ package database
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/CreditSaisonIndia/bageera/internal/awsClient"
+	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
 	"github.com/jackc/pgx/v4"
@@ -158,4 +162,44 @@ func (p *Peer) getCredential(poolCfg *pgxpool.Config, cfg DBConfig, sess *sessio
 func getDBURL(cfg DBConfig) string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s&search_path=%s",
 		cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name, cfg.SSLMode, cfg.SearchPath)
+}
+
+func (p *Peer) GetDbPool(host string) (*pgxpool.Pool, error) {
+	p.Logger.Info("SETTING SESSION FOR DATABASE")
+	opts := session.Options{Config: aws.Config{
+		CredentialsChainVerboseErrors: aws.Bool(true),
+		Region:                        aws.String(serviceConfig.ApplicationSetting.Region),
+		MaxRetries:                    aws.Int(3),
+	}}
+	sess := session.Must(session.NewSessionWithOptions(opts))
+
+	p.Logger.Info("DONE SETTING SESSION FOR DATABASE")
+
+	cfg := DBConfig{
+		Host:        host,
+		Port:        serviceConfig.DatabaseSetting.Port,
+		User:        serviceConfig.DatabaseSetting.User,
+		Password:    serviceConfig.DatabaseSetting.Password,
+		SSLMode:     serviceConfig.DatabaseSetting.SslMode,
+		Name:        serviceConfig.DatabaseSetting.Name,
+		Region:      os.Getenv("region"),
+		IAMRoleAuth: true,
+		Env:         os.Getenv("environment"),
+		SearchPath:  serviceConfig.DatabaseSetting.TablePrefix,
+	}
+
+	pool, err := p.GetDBPool(context.Background(), cfg, sess)
+	if err != nil {
+		p.Logger.Error("ERROR WHILE INITIALIZING DB POOL : ", err)
+		serviceConfig.PrintSettings()
+		awsClient.SendAlertMessage("FAILED", fmt.Sprintf("ERROR WHILE INITIALIZING DB POOL - %s", err))
+		p.Logger.Info("Starting invalid upload file Wait")
+		invalidGoroutinesWaitGroup := sync.WaitGroup{}
+		invalidGoroutinesWaitGroup.Add(1)
+
+		p.Logger.Info("*******INVALID FILE UPLOAD CALL DONE*******")
+		p.Logger.Info("Ended invalidGoroutinesWaitGroup Wait")
+		return nil, fmt.Errorf("ERROR WHILE INITIALIZING DB POOL : %w", err)
+	}
+	return pool, nil
 }

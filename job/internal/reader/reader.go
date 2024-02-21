@@ -44,6 +44,11 @@ func GetReaderType(csvReader *csv.Reader) *Reader {
 
 		return SetReader(groCsvOfferReader)
 
+	case "migrate":
+		migrateCsvOfferReader := &readerIml.MigrateOfferCsvReader{}
+
+		return SetReader(migrateCsvOfferReader)
+
 	default:
 		singleOfferReader := &readerIml.SingleOfferReader{}
 

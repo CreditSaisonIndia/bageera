@@ -21,6 +21,7 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/job/existence"
 	"github.com/CreditSaisonIndia/bageera/internal/sequentialValidator"
 	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
+	"github.com/CreditSaisonIndia/bageera/internal/splitter"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -165,6 +166,27 @@ func Consume() error {
 			if err != nil {
 				LOGGER.Error("Error while deleting the message from queue", err)
 				awsClient.SendAlertMessage("ERROR", fmt.Sprintf("Error while deleting the message from queue - %s", err))
+				break
+			}
+
+			if serviceConfig.ApplicationSetting.Lpc == "migrate" {
+				LOGGER.Info("*********MIGRATE JOB FOUND********")
+				fileNameWithoutExt, _ := utils.GetFileName()
+				fileUtilityWrapper.Move(path, filepath.Join(utils.GetMetadataBaseDir(), fileNameWithoutExt+"_valid.csv"))
+				splitter.SplitCsv(50000)
+				peer := &database.Peer{
+					Name:        "peer",
+					Logger:      customLogger.GetLogger(), // Adjust the logger as needed
+					IAMRoleAuth: true,                     // Set to true if you want to use IAM role authentication
+				}
+				pool, err := peer.GetDbPool(serviceConfig.DatabaseSetting.MasterDbHost)
+				if err != nil {
+					return err
+				}
+				job, _ := job.GetJob()
+				job.ExecuteStrategy("", "")
+				LOGGER.Info("******MIGRATION JOB COMLETED*******")
+				pool.Close()
 				break
 			}
 
