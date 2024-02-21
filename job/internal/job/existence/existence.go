@@ -93,10 +93,6 @@ func (e *Existence) ExecuteJob(path string, tableName string) error {
 	e.LOGGER.Info("******CLOSING DB POOL******")
 	time.Sleep(5 * time.Second)
 
-	if serviceConfig.ApplicationSetting.JobType == "delete" {
-		err = e.DoInsert()
-	}
-
 	return nil
 }
 

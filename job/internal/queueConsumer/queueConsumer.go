@@ -232,6 +232,10 @@ func Consume() error {
 			result := verifier.VerifyCount(existRowCountFilePath)
 			if result.SomePresent {
 				LOGGER.Info("******CSV HAS SOME NEW OFFERS TO DUMP******")
+				if serviceConfig.ApplicationSetting.JobType == "delete" {
+					LOGGER.Info("******JOB IS OF TYPE DELETE HENCE DUMPING OFFERS TO HISTORY TABLE******")
+					err = existence.DoInsert()
+				}
 
 			} else if result.AllPresent {
 				LOGGER.Error("******CSV HAS NO NEW OFFERS TO DUMP******")
@@ -240,6 +244,12 @@ func Consume() error {
 					awsClient.SendAlertMessage("FAILED", "All Offers are Pre-Existing")
 					break
 				}
+
+				if serviceConfig.ApplicationSetting.JobType == "delete" {
+					LOGGER.Info("******JOB IS OF TYPE DELETE HENCE DUMPING OFFERS TO HISTORY TABLE******")
+					err = existence.DoInsert()
+				}
+
 				LOGGER.Error("******SKIPPING THE BREAK SINCE JOB IS OF TYPE DELETE/UPDATE******")
 
 			} else if result.AllAbsent {

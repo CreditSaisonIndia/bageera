@@ -53,7 +53,7 @@ func (r *MultiOfferCsvReader) Read(csvReader *csv.Reader) (*[]model.BaseOffer, e
 	offersLen := len(baseOfferArr)
 	if offersLen > 0 {
 		LOGGER.Info("Chunk 1st parnterLoanId -->>  ", baseOfferArr[0].(*model.MultiCsvOffer).PartnerLoanId)
-		LOGGER.Info("Chunk Last parnterLoanId -->>  " + baseOfferArr[len(baseOfferArr)-1].(*model.MultiCsvOffer).PartnerLoanId)
+		LOGGER.Info("Chunk Last parnterLoanId -->>  " + baseOfferArr[offersLen-1].(*model.MultiCsvOffer).PartnerLoanId)
 	} else {
 		LOGGER.Error("NO OFFER FOUND IN")
 		return nil, fmt.Errorf("NO OFFER LEFT TO READ")
