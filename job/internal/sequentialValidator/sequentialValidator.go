@@ -76,11 +76,11 @@ func Validate(filePath string) (bool, error) {
 
 	validatorFactory := GetOfferValidatorFactory(utils.GetLPC())
 
-	// err = validatorFactory.validateHeader(header)
-	// if err != nil {
-	// 	LOGGER.Error("invalid headers:", err)
-	// 	return false, err
-	// }
+	err = validatorFactory.validateHeader(header)
+	if err != nil {
+		LOGGER.Error("invalid headers:", err)
+		return false, err
+	}
 
 	err = validWriter.Write(header)
 	if err != nil {
