@@ -19,7 +19,7 @@ import (
 var maxConsumerGoroutines = 15
 var ConsumerConcurrencyCh = make(chan struct{}, maxConsumerGoroutines)
 
-func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consumerWaitGroup *sync.WaitGroup, header []string, tableName string) {
+func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consumerWaitGroup *sync.WaitGroup, header []string) {
 	LOGGER := customLogger.GetLogger()
 	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(*offersPointer)))
 	defer consumerWaitGroup.Done()
@@ -42,7 +42,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 
 	chunkFileNameWithoutExtension := filepath.Base(fileName[:len(fileName)-len(filepath.Ext(fileName))])
 
-	successFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_insert_success.csv")
+	successFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_exist_success.csv")
 
 	successFile, err := os.Create(successFilePath)
 	if err != nil {
@@ -51,7 +51,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		return
 	}
 	defer successFile.Close()
-	failureFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_insert_failure.csv")
+	failureFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_exist_failure.csv")
 	failureFile, err := os.Create(failureFilePath)
 	if err != nil {
 		LOGGER.Error("Error creating failure.csv:", err)
@@ -80,8 +80,6 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		<-ConsumerConcurrencyCh
 		return
 	}
-	col := []string{"created_at", "is_active", "is_deleted", "updated_at", "app_form_id", "partner_loan_id",
-		"status", "offer_sections", "description", "remarks", "attempt", "expiry_date"}
 
 	chunkSize := 2000
 	chunkNumber := 0
@@ -89,7 +87,6 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 	// ... (existing code)
 	offersLength := len(*offersPointer)
 	offers := *offersPointer
-
 	LOGGER.Info("Worker : " + fileName + "--->>>> GETTTING DB")
 	// Now you can use the pool to get a database connection
 	conn, err := database.GetPgxPool().Acquire(context.Background())
@@ -115,34 +112,21 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		}
 
 		chunk := offers[i:chunkEnd]
-
+		dataMap := make(map[string]*model.BaseOffer)
 		//var proddboffersPointer []model.InitialOffer
 		for index, offer := range chunk {
 
 			proddbOffer, err := parser.ParserStrategy(&offer)
+			newOfferPointer := offer
+			dataMap[proddbOffer.PartnerLoanID] = &newOfferPointer
 			if err != nil {
 				LOGGER.Error("Error converting offer:", err)
 				parser.WriteOfferToCsv(failureWriter, &offer)
 				continue
 			}
+			placeholders = append(placeholders, fmt.Sprintf("($%d)", index+1))
 
-			//print("proddbOffer.IsActive : ", reflect.TypeOf(proddbOffer.IsActive))
-			placeholders = append(placeholders, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
-				index*len(col)+1,
-				index*len(col)+2,
-				index*len(col)+3,
-				index*len(col)+4,
-				index*len(col)+5,
-				index*len(col)+6,
-				index*len(col)+7,
-				index*len(col)+8,
-				index*len(col)+9,
-				index*len(col)+10,
-				index*len(col)+11,
-				index*len(col)+12,
-			))
-
-			vals = append(vals, proddbOffer.CreatedAt, proddbOffer.IsActive, proddbOffer.IsDeleted, proddbOffer.UpdatedAt, proddbOffer.AppFormID, proddbOffer.PartnerLoanID, proddbOffer.Status, proddbOffer.OfferSections, proddbOffer.Description, proddbOffer.Remarks, proddbOffer.Attempt, proddbOffer.ExpiryDate)
+			vals = append(vals, proddbOffer.PartnerLoanID)
 		}
 
 		// print("placeholders : ", placeholders)
@@ -155,7 +139,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		// 	"offer_sections = EXCLUDED.offer_sections,"+
 		// 	"attempt = EXCLUDED.attempt,expiry_date = EXCLUDED.expiry_date",
 		// 	strings.Join(col, ", "), strings.Join(placeholders, ","))
-		query := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s", tableName, strings.Join(col, ", "), strings.Join(placeholders, ","))
+		query := fmt.Sprintf("SELECT partner_loan_id FROM initial_offer WHERE partner_loan_id IN (%s)", strings.Join(placeholders, ","))
 
 		tx, err := conn.Begin(context.Background())
 		if err != nil {
@@ -167,7 +151,8 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 			return
 		}
 
-		_, err = tx.Exec(context.Background(), query, vals...)
+		rows, err := tx.Query(context.Background(), query, vals...)
+
 		if err != nil {
 			LOGGER.Error("Error : Worker : "+fileName+" ------> tx.Exe ", err)
 			tx.Rollback(context.Background())
@@ -177,32 +162,32 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 			<-ConsumerConcurrencyCh
 			return
 		}
+		defer rows.Close()
+		var id string
 
-		// Commit the transaction inside the loop
-		err = tx.Commit(context.Background())
-		if err != nil {
-			LOGGER.Info("Error : ------>  committing transaction:", err)
-			tx.Rollback(context.Background())
-			for _, offer := range chunk {
-				parser.WriteOfferToCsv(failureWriter, &offer)
+		for rows.Next() {
+
+			if err := rows.Scan(&id); err != nil {
+				parser.WriteOfferToCsv(failureWriter, dataMap[id])
+				delete(dataMap, id)
+				continue
 			}
-			<-ConsumerConcurrencyCh
-			return
+			parser.WriteOfferToCsv(successWriter, dataMap[id])
+			delete(dataMap, id)
+
+		}
+		for key, _ := range dataMap {
+			parser.WriteOfferToCsv(failureWriter, dataMap[key])
 		}
 
-		LOGGER.Info("------------INSERTED--------------")
+		LOGGER.Info("------------EXECUTED--------------")
 		LOGGER.Info("fileName : ", chunkFileNameWithoutExtension, "---->>>>>>CHUNK NUMBER : ", chunkNumber)
-
-		for _, offer := range chunk {
-			parser.WriteOfferToCsv(successWriter, &offer)
-		}
-
 		LOGGER.Info("******** WORKER ", fileName, "  | WARMING UP TO WORK ON NEXT CHUNK ---> ", chunkNumber, " ********")
 	}
+
 	LOGGER.Info("------------RELEASING CONNECTION--------------")
 	conn.Release()
-
-	LOGGER.Info("Worker finished :", fileName, "------> Inserted ", chunkNumber, " times")
+	LOGGER.Info("Worker finished :", fileName, "------> Existence ", chunkNumber, " times")
 
 	<-ConsumerConcurrencyCh
 }

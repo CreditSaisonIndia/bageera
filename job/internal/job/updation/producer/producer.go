@@ -10,14 +10,14 @@ import (
 	"github.com/CreditSaisonIndia/bageera/internal/csvUtilityWrapper"
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
 	"github.com/CreditSaisonIndia/bageera/internal/fileUtilityWrapper"
-	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/consumer"
+	"github.com/CreditSaisonIndia/bageera/internal/job/updation/consumer"
 	read "github.com/CreditSaisonIndia/bageera/internal/reader"
 )
 
 var maxProducerGoroutines = 15
 var ProducerConcurrencyCh = make(chan struct{}, maxProducerGoroutines)
 
-func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *sync.WaitGroup, tableName string) {
+func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *sync.WaitGroup) {
 	LOGGER := customLogger.GetLogger()
 	defer wg.Done()
 	ProducerConcurrencyCh <- struct{}{}
@@ -74,7 +74,7 @@ func Worker(outputDir string, fileName string, wg *sync.WaitGroup, consumerWg *s
 	LOGGER.Info(s)
 	consumerWg.Add(1)
 
-	consumer.Worker(outputDir, fileName, offersPointer, consumerWg, header, tableName)
+	consumer.Worker(outputDir, fileName, offersPointer, consumerWg, header)
 
 	LOGGER.Info("Producer finished : ", filePath)
 	<-ProducerConcurrencyCh

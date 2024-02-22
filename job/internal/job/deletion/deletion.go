@@ -1,4 +1,4 @@
-package insertion
+package deletion
 
 import (
 	"os"
@@ -7,20 +7,19 @@ import (
 	"sync"
 
 	"github.com/CreditSaisonIndia/bageera/internal/customLogger"
-	"github.com/CreditSaisonIndia/bageera/internal/job/insertion/producer"
-
+	"github.com/CreditSaisonIndia/bageera/internal/job/deletion/producer"
 	"github.com/CreditSaisonIndia/bageera/internal/utils"
 )
 
-type Insertion struct {
+type Deletion struct {
 	pattern string
 }
 
-func (insertion *Insertion) ExecuteJob(path string, tableName string) {
+func (d *Deletion) ExecuteJob(path string, tableName string) {
 	// Create a wait group to wait for all workers to finish
 
 	LOGGER := customLogger.GetLogger()
-	LOGGER.Info("***** STARTING INSERTION JOB *****")
+	LOGGER.Info("***** STARTING DELETION JOB *****")
 	var wg sync.WaitGroup
 	var consumerWg sync.WaitGroup
 	outputChunkDir := utils.GetChunksDir()
@@ -30,8 +29,9 @@ func (insertion *Insertion) ExecuteJob(path string, tableName string) {
 		return
 	}
 
-	pattern := insertion.pattern
+	pattern := d.pattern
 	regex := regexp.MustCompile(pattern)
+	// 1,2,3,4,5,6,...
 	for _, file := range files {
 		if file.IsDir() {
 			// Get the subdirectory path
@@ -46,7 +46,7 @@ func (insertion *Insertion) ExecuteJob(path string, tableName string) {
 			for _, file := range subDirFiles {
 				if file.Type().IsRegular() && regex.MatchString(file.Name()) {
 					wg.Add(1)
-					go producer.Worker(subDir, file.Name(), &wg, &consumerWg, tableName)
+					go producer.Worker(subDir, file.Name(), &wg, &consumerWg)
 				}
 			}
 
@@ -59,10 +59,10 @@ func (insertion *Insertion) ExecuteJob(path string, tableName string) {
 	consumerWg.Wait()
 }
 
-func (insertion *Insertion) GetFileNamePattern() string {
-	return insertion.pattern
+func (deletion *Deletion) GetFileNamePattern() string {
+	return deletion.pattern
 }
 
-func (insertion *Insertion) SetFileNamePattern(pattern string) {
-	insertion.pattern = pattern
+func (updation *Deletion) SetFileNamePattern(pattern string) {
+	updation.pattern = pattern
 }

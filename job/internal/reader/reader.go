@@ -4,6 +4,8 @@ import (
 	"encoding/csv"
 
 	"github.com/CreditSaisonIndia/bageera/internal/model"
+	readerIml "github.com/CreditSaisonIndia/bageera/internal/reader/readerImpl"
+	"github.com/CreditSaisonIndia/bageera/internal/serviceConfig"
 )
 
 type Reader struct {
@@ -27,4 +29,24 @@ func (r *Reader) GetHeader() []string {
 // SetHeader implements reader.OfferReader.
 func (r *Reader) SetHeader(header []string) {
 	r.readerStrategy.SetHeader(header)
+}
+
+func GetReaderType(csvReader *csv.Reader) *Reader {
+
+	switch serviceConfig.ApplicationSetting.Lpc {
+	case "PSB", "ONL", "SPM":
+		multiOfferCsvReader := &readerIml.MultiOfferCsvReader{}
+
+		return SetReader(multiOfferCsvReader)
+
+	case "GRO", "ANG":
+		groCsvOfferReader := &readerIml.GroCsvOfferReader{}
+
+		return SetReader(groCsvOfferReader)
+
+	default:
+		singleOfferReader := &readerIml.SingleOfferReader{}
+
+		return SetReader(singleOfferReader)
+	}
 }
