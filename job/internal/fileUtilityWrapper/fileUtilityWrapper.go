@@ -261,6 +261,18 @@ func Copy(fileName, fileNameWithoutExt, sourcePath, destinationPath string) erro
 
 }
 
+func Move(sourcePath, destinationPath string) error {
+	// Move the file
+	err := os.Rename(sourcePath, destinationPath)
+	if err != nil {
+		LOGGER.Error("Error : WHILE MOVING FILE : ", err)
+		return fmt.Errorf("ERROR WHILE MOVING FILE : %w", err)
+
+	}
+	LOGGER.Info("Moved --->>>   ", sourcePath, " |    To --->>> ", destinationPath)
+	return nil
+}
+
 func copyFile(src, dest string) error {
 	sourceFile, err := os.Open(src)
 	if err != nil {

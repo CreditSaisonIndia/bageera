@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: 2010-09-09
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'AWS CloudFormation Sample Template SNS-> SQS  SNS-> lambda'
+
+Parameters:
+
+  ServiceTags:
+    Description: List of service tags Service, Owner, Department, Stage
+    Type: CommaDelimitedList
+  EnvironmentType:
+    Description: EnvironmentType
+    Type: String
+    AllowedValues:
+      - 'production'
+      - 'uat'
+      - 'int'
+      - 'qa2'
+      - 'qa'
+      - 'dev'
+    Default: 'qa2'
+  BageeraClusterArn:
+    Description: BageerClusterArn
+    Type: String
+  BageeraPursuerServiceArn:
+    Description: BageeraPursuerServiceArn
+    Type: String
+
+
+    
+
+Resources:
+
+
+  UpdateEcsServiceFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: ../updateEcsService/src
+      Tags:
+        Service: !Select
+          - 0
+          - !Ref ServiceTags
+        Owner: !Select
+          - 1
+          - !Ref ServiceTags
+        Department: !Select
+          - 2
+          - !Ref ServiceTags
+        Stage: !Select
+          - 3
+          - !Ref ServiceTags
+      Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 120
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AmazonECS_FullAccess
+        - AmazonEventBridgeFullAccess
+      Environment:
+        Variables:
+          BAGEERA_CLUSTER_ARN: !Ref BageeraClusterArn
+          BAGEERA_PURSUER_SERVICE_ARN: !Ref BageeraPursuerServiceArn
+          ENV: !Ref EnvironmentType
+
+  DailyLambdaInvokeRule:
+    DependsOn: UpdateEcsServiceFunction
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: 'Trigger Lambda Daily at 12 AM IST'
+      ScheduleExpression: 'cron(0 18 * * ? *)' # 12 AM IST = 18 UTC
+      State: 'ENABLED'
+      Targets:
+        - Arn: !GetAtt UpdateEcsServiceFunction.Arn
+          Id: 'UpdateECSServiceLambdaTarget'
+  
+  PermissionEventsToInvokeLambda:
+    DependsOn: DailyLambdaInvokeRule
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UpdateEcsServiceFunction
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !GetAtt DailyLambdaInvokeRule.Arn
+
+
+Outputs:
+  UpdateEcsServiceFunction:
+    Description: "UpdateEcsServiceFunction Lambda Function ARN"
+    Value: !GetAtt UpdateEcsServiceFunction.Arn
+    Export:
+      Name: bageeraUpdateEcsService

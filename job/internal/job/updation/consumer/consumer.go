@@ -19,7 +19,7 @@ import (
 var maxConsumerGoroutines = 15
 var ConsumerConcurrencyCh = make(chan struct{}, maxConsumerGoroutines)
 
-func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consumerWaitGroup *sync.WaitGroup, header []string, tableName string) {
+func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consumerWaitGroup *sync.WaitGroup, header []string) {
 	LOGGER := customLogger.GetLogger()
 	LOGGER.Info("Worker : " + fileName + " started with offer size  " + strconv.Itoa(len(*offersPointer)))
 	defer consumerWaitGroup.Done()
@@ -30,19 +30,19 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 
 	// db := customDB.DB
 	// if db == nil {
-	// 	// Handle the case where DB is nil
-	// 	return
+	//  // Handle the case where DB is nil
+	//  return
 	// }
 
 	// if err != nil {
-	// 	LOGGER.Error("Error while database.InitSqlxDb:", err)
-	// 	<-ConsumerConcurrencyCh
-	// 	return
+	//  LOGGER.Error("Error while database.InitSqlxDb:", err)
+	//  <-ConsumerConcurrencyCh
+	//  return
 	// }
 
 	chunkFileNameWithoutExtension := filepath.Base(fileName[:len(fileName)-len(filepath.Ext(fileName))])
 
-	successFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_insert_success.csv")
+	successFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_update_success.csv")
 
 	successFile, err := os.Create(successFilePath)
 	if err != nil {
@@ -51,7 +51,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		return
 	}
 	defer successFile.Close()
-	failureFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_insert_failure.csv")
+	failureFilePath := filepath.Join(filePath, chunkFileNameWithoutExtension+"_update_failure.csv")
 	failureFile, err := os.Create(failureFilePath)
 	if err != nil {
 		LOGGER.Error("Error creating failure.csv:", err)
@@ -80,11 +80,11 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		<-ConsumerConcurrencyCh
 		return
 	}
-	col := []string{"created_at", "is_active", "is_deleted", "updated_at", "app_form_id", "partner_loan_id",
-		"status", "offer_sections", "description", "remarks", "attempt", "expiry_date"}
 
 	chunkSize := 2000
 	chunkNumber := 0
+
+	col := []string{"updated_at", "partner_loan_id", "offer_sections", "description", "remarks", "attempt", "expiry_date"}
 
 	// ... (existing code)
 	offersLength := len(*offersPointer)
@@ -102,20 +102,19 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 		<-ConsumerConcurrencyCh
 		return
 	}
+
 	for i := 0; i < offersLength; i += chunkSize {
 		chunkNumber++
 		var (
 			placeholders []string
 			vals         []interface{}
 		)
-
 		chunkEnd := i + chunkSize
 		if chunkEnd > offersLength {
 			chunkEnd = offersLength
 		}
 
 		chunk := offers[i:chunkEnd]
-
 		//var proddboffersPointer []model.InitialOffer
 		for index, offer := range chunk {
 
@@ -126,8 +125,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 				continue
 			}
 
-			//print("proddbOffer.IsActive : ", reflect.TypeOf(proddbOffer.IsActive))
-			placeholders = append(placeholders, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			placeholders = append(placeholders, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 				index*len(col)+1,
 				index*len(col)+2,
 				index*len(col)+3,
@@ -135,27 +133,24 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 				index*len(col)+5,
 				index*len(col)+6,
 				index*len(col)+7,
-				index*len(col)+8,
-				index*len(col)+9,
-				index*len(col)+10,
-				index*len(col)+11,
-				index*len(col)+12,
 			))
 
-			vals = append(vals, proddbOffer.CreatedAt, proddbOffer.IsActive, proddbOffer.IsDeleted, proddbOffer.UpdatedAt, proddbOffer.AppFormID, proddbOffer.PartnerLoanID, proddbOffer.Status, proddbOffer.OfferSections, proddbOffer.Description, proddbOffer.Remarks, proddbOffer.Attempt, proddbOffer.ExpiryDate)
+			vals = append(vals, proddbOffer.UpdatedAt, proddbOffer.PartnerLoanID, proddbOffer.OfferSections, proddbOffer.Description, proddbOffer.Remarks, proddbOffer.Attempt+1, proddbOffer.ExpiryDate)
+
 		}
 
-		// print("placeholders : ", placeholders)
-		// print("vals: ", vals)
+		print("placeholders : ", placeholders)
+		print("vals: ", vals)
 
 		// Construct the SQL query
 		// Construct the SQL query with ON CONFLICT
-		// query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s ON CONFLICT (partner_loan_id) DO UPDATE SET "+
-		// 	"updated_at = EXCLUDED.updated_at, "+
-		// 	"offer_sections = EXCLUDED.offer_sections,"+
-		// 	"attempt = EXCLUDED.attempt,expiry_date = EXCLUDED.expiry_date",
-		// 	strings.Join(col, ", "), strings.Join(placeholders, ","))
-		query := fmt.Sprintf("INSERT INTO %s (%s) VALUES %s", tableName, strings.Join(col, ", "), strings.Join(placeholders, ","))
+		query := fmt.Sprintf("INSERT INTO initial_offer (%s) VALUES %s ON CONFLICT (partner_loan_id) DO UPDATE SET "+
+			"updated_at = EXCLUDED.updated_at, "+
+			"offer_sections = EXCLUDED.offer_sections,"+
+			"description = EXCLUDED.description,"+
+			"remarks = EXCLUDED.remarks,"+
+			"attempt = EXCLUDED.attempt,expiry_date = EXCLUDED.expiry_date",
+			strings.Join(col, ", "), strings.Join(placeholders, ","))
 
 		tx, err := conn.Begin(context.Background())
 		if err != nil {
@@ -190,7 +185,7 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 			return
 		}
 
-		LOGGER.Info("------------INSERTED--------------")
+		LOGGER.Info("------------UPDATED--------------")
 		LOGGER.Info("fileName : ", chunkFileNameWithoutExtension, "---->>>>>>CHUNK NUMBER : ", chunkNumber)
 
 		for _, offer := range chunk {
@@ -199,10 +194,10 @@ func Worker(filePath, fileName string, offersPointer *[]model.BaseOffer, consume
 
 		LOGGER.Info("******** WORKER ", fileName, "  | WARMING UP TO WORK ON NEXT CHUNK ---> ", chunkNumber, " ********")
 	}
+
 	LOGGER.Info("------------RELEASING CONNECTION--------------")
 	conn.Release()
-
-	LOGGER.Info("Worker finished :", fileName, "------> Inserted ", chunkNumber, " times")
+	LOGGER.Info("Worker finished :", fileName, "------> UPDATED ", chunkNumber, " times")
 
 	<-ConsumerConcurrencyCh
 }
